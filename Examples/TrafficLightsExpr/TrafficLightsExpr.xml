@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Traffic">
+  <service name="Junction" provision="expr">
+    <prop name="expr.state" Mode="NewMode"/>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewMode = "traffic".
+    ]]></prop>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <field name="ON"/>
+  <field name="SET"/>
+  <field name="mode" type="string"/>
+  <field name="PEOPLE"/>
+  <field name="TRAFFIC"/>
+  <mix name="Mix">
+    <folder name="Auto">
+      <notify name="NotifyMode" service="Sequencer" clients="Junction" fields="ON mode">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("mode", Mode),
+"Ok".
+        ]]></prop>
+        <prop name="expr.state" Mode="OldMode"/>
+      </notify>
+      <request name="GetMode" service="Junction" fields="ON mode">
+        <reply name="People" fields="PEOPLE"/>
+        <reply name="Traffic" fields="TRAFFIC"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+case get("mode") of
+  "people" -> "People";
+  _Otherwise -> "Traffic"
+end.
+        ]]></prop>
+      </request>
+      <consume name="SetMode" service="Junction" fields="SET mode">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewMode = get("mode").
+        ]]></prop>
+      </consume>
+    </folder>
+    <folder name="TrafficLights">
+      <service name="Lights" provision="expr">
+        <prop name="expr.state" Colour="NewColour"/>
+      </service>
+      <consume name="SetGreen" service="Lights" fields="ON TRAFFIC">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = green.
+        ]]></prop>
+      </consume>
+      <consume name="SetRed" service="Lights" fields="ON PEOPLE">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = red.
+        ]]></prop>
+      </consume>
+    </folder>
+    <folder name="PedestrianLights">
+      <service name="Lights" provision="expr">
+        <prop name="expr.state" Colour="NewColour"/>
+      </service>
+      <consume name="SetGreen" service="Lights" fields="ON PEOPLE">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = green.
+        ]]></prop>
+      </consume>
+      <consume name="SetRed" service="Lights" fields="ON TRAFFIC">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = red.
+        ]]></prop>
+      </consume>
+    </folder>
+    <folder name="Button">
+      <service name="RequestButton" provision="expr">
+        <prop name="expr.state" PersonWaiting="NewPersonWaiting"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewPersonWaiting = false.
+        ]]></prop>
+      </service>
+      <field name="PRESS"/>
+      <notify name="GiveMode" service="Sequencer" clients="RequestButton" fields="SET mode">
+        <prop name="expr.auto" interval="20s"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[case PersonWaiting of
+  true ->
+  	put("mode", "people");
+    
+  false ->
+    put("mode", "traffic")
+end,
+true.
+        ]]></prop>
+      </notify>
+      <notify name="Press" service="Sequencer" fields="PRESS"/>
+      <consume name="Pressed" service="RequestButton" fields="PRESS">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewPersonWaiting = true.
+        ]]></prop>
+      </consume>
+      <consume name="Reset" service="RequestButton" fields="SET">
+        <prop name="expr.src" content-content-type="text/x-erlang"><![CDATA[
+NewPersonWaiting = false.
+        ]]></prop>
+      </consume>
+    </folder>
+  </mix>
+</folder>

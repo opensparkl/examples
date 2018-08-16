@@ -1,0 +1,145 @@
+<folder name="lib.slack">
+  <service name="Slack" provision="expr">
+    <prop name="expr.src" type="text/x-erlang"><![CDATA[% Slack channel URL.
+ChannelUrl =
+  Meta({prop, "slack", "url"}),
+
+Colours = #{
+  u("green")	=>	u("#2ecc71"),
+  u("amber")	=> 	u("#f1c40f"),
+  u("red")		=> 	u("#e74c3c")
+},
+
+% Function to build a message with a heading and a short field
+% per map key/value, sorted by key.
+BuildMessage =
+  fun(Colour, Heading, Map) ->
+    Fields =
+      maps:fold(
+        fun(Key, Value, Acc) ->
+          Field = #{
+            "title" => u(Key),
+            "value" => Value,
+            "short" => true},
+          [Field | Acc]
+        end, [], Map),
+    SortedFields =
+      lists:sort(
+        fun(#{"title" := Title1}, #{"title" := Title2}) ->
+          Title1 =< Title2
+        end, Fields),
+    #{
+      "pretext" => Heading,
+      "fallback" => Heading,
+      "color" => maps:get(Colour, Colours, Colour),
+      "fields" => SortedFields}
+  end,
+
+% Function to send a built message term to the Slack channel.
+SendMessage =
+  fun(Term, Url) ->
+    {ok, Body} =
+      sse_json:encode(Term),
+    Request =
+      {Url, [], "application/json", Body},
+    httpc:request(post, Request, [], [])
+  end.
+]]></prop>
+    <prop name="slack" url="https://hooks.slack.com/services/..."/>
+  </service>
+  <service name="Export" provision="subr">
+    <prop name="subr.export" key="lib.slack.Slack"/>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <mix name="Mix">
+    <field name="colour" type="utf8"/>
+    <field name="heading" type="utf8"/>
+    <field name="map" type="json"/>
+    <field name="url" type="string"/>
+    <notify name="SendMessage" service="Sequencer" clients="Export" fields="colour heading map">
+    </notify>
+    <notify name="SendMessageUrl" service="Sequencer" clients="Export" fields="colour heading map url">
+    </notify>
+    <folder name="Impl">
+      <consume name="SendMessage" service="Slack" fields="colour heading map">
+        <prop name="expr.src" type="text/x-erlang"><![CDATA[
+Colour = get("colour"), 
+Heading= get("heading"), 
+Map = get("map"),
+
+Message =
+  BuildMessage(
+    Colour, Heading, Map),
+SendMessage(
+  Message, ChannelUrl).
+        
+          ]]></prop>
+      </consume>
+      <consume name="SendMessageUrl" service="Slack" fields="colour heading map url">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Colour = get("colour"), 
+Heading = get("heading"), 
+Map = get("map"),
+Url = get("url"),
+
+Message =
+  BuildMessage(
+    Colour, Heading, Map),
+SendMessage(
+  Message, Url).
+        ]]></prop>
+      </consume>
+    </folder>
+    <folder name="Test">
+      <field name="test_colour" type="utf8"/>
+      <field name="test_heading" type="utf8"/>
+      <field name="test_map" type="json"/>
+      <field name="test_url" type="string"/>
+      <field name="test_message" type="json"/>
+      <field name="SUCCESS"/>
+      <field name="FAIL"/>
+      <solicit name="Start" service="Sequencer" fields="test_colour test_heading test_map test_url">
+        <response name="Ok" fields="SUCCESS test_message"/>
+        <response name="Error" fields="FAIL"/>
+      </solicit>
+      <request name="BuildMessage" service="Slack" fields="test_colour test_heading test_map">
+        <reply name="Ok" fields="test_message"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Colour = get("test_colour"), 
+Heading = get("test_heading"),
+Map = get("test_map"),
+
+Message =
+  BuildMessage(
+    Colour, Heading, Map),
+
+put("test_message", Message),
+ "Ok".]]></prop>
+      </request>
+      <request name="SendToSlack" service="Slack" fields="test_message test_url">
+        <reply name="Ok" fields="SUCCESS"/>
+        <reply name="Error" fields="FAIL"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Url = get("test_url"), 
+Message = get("test_message"),
+
+{ok, 
+	{
+		{_, Status, _},
+		Headers,
+		Response
+	}
+} = SendMessage(
+  Message, Url),
+  
+case Status of
+  200 ->
+    "Ok";
+  _Otherwise ->
+    "Error"
+ end.
+]]></prop>
+      </request>
+    </folder>
+  </mix>
+</folder>

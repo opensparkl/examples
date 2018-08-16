@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Tutorial2">
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="WilliamKidd" provision="expr">
+    <prop name="expr.state" Mode="NewMode"/>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewMode = "Sober".
+    ]]></prop>
+  </service>
+  <field name="rum" type="string"/>
+  <mix name="Mix">
+    <notify name="GiveRum" service="Sequencer" fields="rum"/>
+    <consume name="DrinkRum" service="WilliamKidd" fields="rum">
+      <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewMode = "Drunk".
+      ]]></prop>
+    </consume>
+  </mix>
+</folder>

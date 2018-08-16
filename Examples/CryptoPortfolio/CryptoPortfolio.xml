@@ -1,0 +1,299 @@
+<folder name="CryptoPortfolio">
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Portfolio" provision="expr">
+    <prop name="expr.state" BitCoin="NewBitcoin" Currency="NewCurrency" Portfolio="NewPortfolio"/>
+    <prop name="expr.init.Portfolio" content-type="text/x-erlang"><![CDATA[
+
+% Portfolio is a list, empty at startup
+[]
+
+    ]]></prop>
+    <prop name="expr.init" Currency="usd"/>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+
+% Calculates the percentage difference between two numbers 
+CalculateChange =
+  fun (N,M) ->
+      (M - N) / N * 100
+  end.
+    
+    ]]></prop>
+  </service>
+  <service name="ErrorLogger" provision="rest"/>
+  <field name="ADD"/>
+  <field name="READY"/>
+  <field name="DELETE"/>
+  <field name="CURRENCY"/>
+  <field name="CHANGE"/>
+  <field name="DONE"/>
+  <field name="RECORDS"/>
+  <field name="btc_price" type="float"/>
+  <field name="currency" type="string"/>
+  <field name="crypto_currency" type="string"/>
+  <field name="error" type="term"/>
+  <field name="portfolio" type="term"/>
+  <field name="crypto_currencies" type="term"/>
+  <mix name="Mix">
+    <folder name="API">
+      <solicit name="AddRecord" service="Sequencer" fields="ADD CURRENCY crypto_currency">
+        <response name="Ok" fields="DONE"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="BulkAdd" service="Sequencer" fields="crypto_currencies">
+        <response name="Ok" fields="READY"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="DeleteRecord" service="Sequencer" fields="DELETE crypto_currency">
+        <response name="Ok" fields="DONE"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="GetRecords" service="Sequencer" fields="RECORDS">
+        <response name="Ok" fields="portfolio"/>
+      </solicit>
+      <solicit name="GetCurrency" service="Sequencer" fields="CURRENCY">
+        <response name="Ok" fields="currency"/>
+      </solicit>
+      <solicit name="ChangeCurrency" service="Sequencer" fields="CHANGE currency">
+        <response name="Ok" fields="CHANGE btc_price"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+    </folder>
+    <folder name="Impl">
+      <field name="GET"/>
+      <field name="crypto_price" type="float"/>
+      <consume name="LogErrors" service="ErrorLogger" fields="error"/>
+      <consume name="EndThread" service="Portfolio" fields="DONE"/>
+      <folder name="Manage">
+        <consume name="BulkAdd" service="Portfolio" fields="crypto_currencies">
+          <reply name="Ok" fields="ADD crypto_currencies crypto_currency currency"/>
+          <reply name="Done" fields="READY"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+
+% Input field is a list of crypto currences, e.g. ["etc","eth","zec"].
+% Recursively sends the currency codes one by one until the list is empty
+CryptoCurrencies = get("crypto_currencies"),
+
+case CryptoCurrencies of
+  [] ->
+    "Done";
+  _Otherwise ->
+  [CryptoCurr|RemainingCryptoCurrencies] = CryptoCurrencies,
+    put("crypto_currencies", RemainingCryptoCurrencies),
+    put("crypto_currency", CryptoCurr),
+    put("currency", Currency),
+    "Ok"
+ end.
+          ]]></prop>
+        </consume>
+        <request name="Add" service="Portfolio" fields="ADD crypto_currency crypto_price">
+          <reply name="Ok" fields="DONE"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+CryptoCurrency = get("crypto_currency"),
+CryptoPrice = get("crypto_price"),
+
+% Updates the Portfolio state variable (i.e. the list of crypto currencies you're interested in)
+
+Error = "Crypto currency " 
+    ++ string:to_upper(CryptoCurrency) 
+    ++ " is already in portfolio.",
+
+% Check if crypto currency is not already in portfolio
+SearchResult = lists:keyfind(
+  string:to_upper(
+    CryptoCurrency), 1, Portfolio),
+
+case SearchResult of
+  false ->
+    NewPortfolio = 
+      Portfolio ++ [{string:to_upper(
+        CryptoCurrency), CryptoPrice}],
+    "Ok";
+  _Otherwise ->
+    put("error", Error),
+    "Error"
+end.
+
+          ]]></prop>
+        </request>
+        <request name="Delete" service="Portfolio" fields="DELETE crypto_currency">
+          <reply name="Ok" fields="DONE"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+CryptoCurr = get("crypto_currency"),
+
+% If the specified crypto currency is in the portfolio, deletes it updating the Portfolio state variable.
+
+DeleteError = "Crypto currency " 
+    ++ string:to_upper(CryptoCurr)
+    ++ " is not in portfolio.",
+
+  SearchResult = 
+    lists:keyfind(
+      string:to_upper(
+        CryptoCurr), 1, Portfolio),
+
+case SearchResult of
+  false ->
+    put(
+      "error", DeleteError),
+    "Error";
+  
+  _Otherwise ->
+    NewPortfolio = 
+      lists:delete(
+       SearchResult, Portfolio),
+    "Ok"
+end.
+
+          ]]></prop>
+        </request>
+        <request name="GetRecords" service="Portfolio" fields="RECORDS">
+          <reply name="Ok" fields="portfolio"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("portfolio", Portfolio),
+"Ok".
+          ]]></prop>
+        </request>
+        <request name="GetCurrency" service="Portfolio" fields="CURRENCY">
+          <reply name="Ok" fields="currency"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("currency", Currency),
+"Ok".
+          ]]></prop>
+        </request>
+        <request name="Change" service="Portfolio" fields="CHANGE currency">
+          <reply name="Ok" fields="GET"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Updates the Currency state variable to the value of the input field
+
+NewCurrency = get("currency"),
+  "Ok".
+          ]]></prop>
+        </request>
+      </folder>
+      <folder name="Subroutines">
+        <service name="LibBitcoin" provision="subr">
+          <prop name="subr.import" key="lib.bitcoin.Bitcoin"/>
+        </service>
+        <request name="GetBTC" service="LibBitcoin" fields="GET currency">
+          <reply name="Ok" fields="btc_price"/>
+          <reply name="Error" fields="error"/>
+        </request>
+        <request name="GetCrypto" service="LibBitcoin" fields="crypto_currency currency">
+          <reply name="Ok" fields="crypto_price"/>
+          <reply name="Error" fields="error"/>
+        </request>
+      </folder>
+      <folder name="ChangeTracker">
+        <service name="Timer" provision="expr" dependencies="Portfolio"/>
+        <field name="last_price" type="float"/>
+        <field name="change" type="float"/>
+        <notify name="Update" service="Sequencer" clients="Timer" fields="CURRENCY GET RECORDS">
+          <prop name="expr.auto" interval="10m"/>
+        </notify>
+        <request name="GetCurrency" service="Portfolio" fields="CURRENCY GET">
+          <reply name="Ok" fields="currency"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("currency", Currency),
+"Ok".
+          ]]></prop>
+        </request>
+        <consume name="Iterate" service="Portfolio" fields="currency portfolio">
+          <reply name="Ok" fields="crypto_currency currency last_price portfolio"/>
+          <reply name="Done" fields="DONE"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Recursively traverses the records held in the portfolio, sending the crypto currencies and their last price one by one
+Records = get("portfolio"),
+
+case Records of
+  [] ->
+    "Done";
+  
+  _Otherwise ->
+    [Record|RemainingRecords] = Records,
+    {CryptoCurr,CryptoPrice} = Record,
+    put("crypto_currency", CryptoCurr),
+    put("portfolio", RemainingRecords),
+    put("last_price", CryptoPrice),
+    "Ok"
+end.
+          ]]></prop>
+        </consume>
+        <request name="Compare" service="Portfolio" fields="crypto_currency crypto_price last_price">
+          <reply name="Ok" fields="change"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Calculates the percentage change based on the last and current price of a crypto currency
+
+Change = 
+  CalculateChange(
+                  get("last_price"), 
+                  get("crypto_price")),
+put("change", Change),
+"Ok".
+          ]]></prop>
+        </request>
+        <consume name="LogChanges" service="Portfolio" fields="change crypto_currency crypto_price">
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Updates the Portfolio state variable so that the crypto currency would have the latest price.
+CryptoCurr = get("crypto_currency"),
+  
+NewPortfolio = 
+  lists:keyreplace(
+    CryptoCurr, 
+    1, 
+    Portfolio, 
+    {CryptoCurr, get("crypto_price")}).
+          ]]></prop>
+        </consume>
+        <consume name="SetPrice" service="Portfolio" fields="btc_price">
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewBitcoin = get("btc_price").
+          ]]></prop>
+        </consume>
+      </folder>
+    </folder>
+    <folder name="Test">
+      <field name="TEST"/>
+      <field name="DOUBLE"/>
+      <field name="TEST_DELETE"/>
+      <field name="end_state" type="term"/>
+      <field name="start_state" type="term"/>
+      <solicit name="TestAdd" service="Sequencer" fields="ADD CURRENCY TEST crypto_currency">
+        <response name="Ok" fields="end_state start_state"/>
+      </solicit>
+      <solicit name="TestAddDuplicate" service="Sequencer" fields="ADD CURRENCY DOUBLE TEST crypto_currency">
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="TestDelete" service="Sequencer" fields="ADD CURRENCY TEST TEST_DELETE crypto_currency">
+        <response name="Ok" fields="DELETE end_state start_state"/>
+      </solicit>
+      <request name="GetStartState" service="Portfolio" fields="TEST">
+        <reply name="Ok" fields="start_state"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("start_state", Portfolio),
+"Ok".
+        ]]></prop>
+      </request>
+      <request name="GetEndState" service="Portfolio" fields="DONE start_state">
+        <reply name="Ok" fields="end_state"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Transform crypto ticker/ price tuples into list for tests, Python doesn't like Erlang tuples
+EndState = [tuple_to_list(X)||X <- Portfolio],
+put("end_state", EndState),
+"Ok".
+        ]]></prop>
+      </request>
+      <consume name="StartDelete" service="Portfolio" fields="TEST_DELETE crypto_currency end_state">
+        <reply name="Ok" fields="DELETE crypto_currency start_state"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("start_state", get("end_state")),
+"Ok".
+        ]]></prop>
+      </consume>
+      <consume name="AddDuplicate" service="Portfolio" fields="DOUBLE crypto_currency end_state start_state">
+        <reply name="Ok" fields="ADD CURRENCY crypto_currency end_state start_state"/>
+      </consume>
+    </folder>
+  </mix>
+</folder>

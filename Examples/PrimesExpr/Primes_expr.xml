@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Primes_expr">
+  <field name="NO"/>
+  <field name="YES"/>
+  <field name="MAYBE"/>
+  <field name="n" type="integer"/>
+  <field name="div" type="integer"/>
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Backend" provision="expr">
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NextDiv = fun
+  (2) -> 3;
+  (Div) -> Div + 2
+end.
+    ]]></prop>
+  </service>
+  <mix name="Mix">
+    <folder name="Frontend">
+      <solicit name="CheckPrime" service="Sequencer" fields="n">
+        <response name="Yes" fields="YES"/>
+        <response name="No" fields="NO"/>
+      </solicit>
+      <consume name="Log" service="Backend" fields="n YES"/>
+    </folder>
+    <folder name="Backend">
+      <request name="FirstDivisor" service="Backend" fields="n">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("div", 2),
+"Ok".
+        ]]></prop>
+        <reply name="Ok" fields="div"/>
+      </request>
+      <request name="Test" service="Backend" fields="div n">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Div = get("div"),
+N = get("n"),
+
+if
+  Div * Div > N ->
+    "Yes";
+
+  N rem Div == 0 ->
+    "No";
+
+  true ->
+    "Maybe"
+end.
+        ]]></prop>
+        <reply name="Yes" fields="YES"/>
+        <reply name="No" fields="NO"/>
+        <reply name="Maybe" fields="MAYBE"/>
+      </request>
+      <consume name="Iterate" service="Backend" fields="MAYBE div n">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("div", NextDiv(get("div"))),
+"Ok".
+        ]]></prop>
+        <reply name="Ok" fields="div n"/>
+      </consume>
+    </folder>
+  </mix>
+</folder>

@@ -1,0 +1,141 @@
+<folder name="lib.sms">
+  <service name="Export" provision="subr">
+    <prop key="lib.sms.SMS" name="subr.export"/>
+  </service>
+  <service name="SMS" provision="expr">
+    <prop name="expr.src" type="text/x-erlang"><![CDATA[
+% Takes an Erlang map as input (e.g. TwilioSpec map)
+% From map retrieves account SID/base Url and builds url for posting
+BuildUrl =
+  fun(Map) ->
+    BaseUrl = maps:get("base_url", Map),
+    AccountSid = maps:get("acc_sid", Map),
+    BaseUrl ++ 
+    AccountSid ++
+    "/Messages.json"
+  end,
+
+% Builds authentication header from user details
+AuthHeader = 
+  fun(User, Pass) ->
+    Encoded = 
+      base64:encode_to_string(
+        User ++ ":" ++ Pass),
+    {"Authorization", "Basic " ++ Encoded}
+  end,
+
+% Encodes a map for http post to Twilio 
+EncodeParams =
+  fun(Params) ->
+    maps:fold(
+      fun(Name, Value, Acc) ->
+        Param =
+          Name ++ "=" ++
+            http_uri:encode(Value),
+        case Acc of
+          "" ->Param;
+         
+          Acc ->Acc ++ "&" ++ Param
+        end
+      end, "", Params)
+  end,
+ 
+  % Sends a text message(Body) to a given number(To)
+  % Authentication details and Url are retrieved from Map
+  SendMessage =
+    fun(To, Body, Map) ->
+      UserId = maps:get("acc_sid", Map),
+      Pswd = maps:get("auth_token", Map),
+      From = maps:get("from", Map),
+      Url = BuildUrl(Map),
+    
+      Headers = [
+        AuthHeader(
+          UserId,
+          Pswd)],
+        ContentType =
+          "application/x-www-form-urlencoded",
+        Content =
+          EncodeParams(#{
+            "To" =>To,
+            "From" =>From,
+            "Body" =>Body}),
+        Request =
+          {Url, Headers, ContentType, Content},
+          io:format("~p~n", [Request]),
+          httpc:request(post, Request, [], [])
+    end.
+    ]]></prop>
+    <prop TwilioSpec="NewTwilioSpec" name="expr.state"/>
+    <prop content-type="text/x-erlang" name="expr.init.TwilioSpec"><![CDATA[
+% Specify your Twilio API keys (account SID, auth token, etc)
+#{
+    "acc_sid" =>"insert_acc_sid",
+    "auth_token" =>"insert_auth_token",
+    "from" =>"insert_twilio_phone_number",
+    "base_url" =>"https://api.twilio.com/2010-04-01/Accounts/"
+}
+    ]]></prop>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <mix name="Mix">
+    <field name="SEND"/>
+    <field name="OK"/>
+    <field name="error" type="string"/>
+    <field name="message" type="string"/>
+    <field name="to" type="string"/>
+    <field name="acc_sid" type="string"/>
+    <field name="auth_token" type="string"/>
+    <field name="from" type="string"/>
+    <solicit name="SendMessage" service="Sequencer" clients="Export" fields="SEND message to">
+      <response name="Ok" fields="OK"/>
+      <response name="Error" fields="error"/>
+    </solicit>
+    <solicit name="SendMessageSecure" service="Sequencer" clients="Export" fields="acc_sid auth_token from message to">
+      <response name="Ok" fields="OK"/>
+      <response name="Error" fields="error"/>
+    </solicit>
+    <folder name="Impl">
+      <field name ="api_json" type="json"/>
+      <request name="SetAPIKeys" service="SMS" fields="acc_sid auth_token from">
+        <reply name="Ok" fields="SEND api_json"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Set Twilio API keys based on input
+FieldDict = get(),
+
+NewTwilioSpec = 
+  lists:foldl(
+    fun(E, Acc) ->
+      {Key, Val} = E,
+      maps:put(Key, Val, Acc) 
+    end, 
+  TwilioSpec, 
+  FieldDict),
+"Ok".
+        ]]></prop>
+      </request>
+      <request name="SendMessage" service="SMS" fields="SEND message to">
+        <reply name="Ok" fields="OK"/>
+        <reply name="Error" fields="error"/>
+        <prop name="expr.src" type="text/x-erlang"><![CDATA[
+Result =
+  SendMessage(get("to"), get("message"), TwilioSpec),
+io:format("~p~n", [Result]),
+
+case Result of
+  {ok, {{_, 201, _}, _Headers, _Content}} ->
+    "Ok";
+  
+  {ok, {{_, _Code, Error}, _Headers, _Content}} ->
+    put("error", Error),
+    "Error";
+  
+  {error, Error} ->
+    put("error", Error),
+    "Error"
+end.
+        ]]></prop>
+      </request>
+    </folder>
+  </mix>
+</folder>

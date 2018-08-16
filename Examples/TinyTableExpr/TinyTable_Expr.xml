@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="TinyTable_expr">
+  <field name="DELETE"/>
+  <field name="GET"/>
+  <field name="INSERT"/>
+  <field name="LIST"/>
+  <field name="OK"/>
+  <field name="error" type="string"/>
+  <field name="first_name" type="string"/>
+  <field name="key" type="integer"/>
+  <field name="last_name" type="string"/>
+  <field name="records" type="term"/>
+  <service name="Database" provision="expr">
+    <prop name="expr.init" NextKey="2"/>
+    <prop name="expr.init.Map" content-type="text/x-erlang"><![CDATA[
+#{
+  0 => #{
+    first_name => "Bill",
+    last_name => "Door"},
+
+  1 => #{
+    first_name => "King",
+    last_name => "Kong"}
+}
+		]]></prop>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Error = not_found,
+ExistFun =  
+  fun(Value, Map) ->   
+    maps:is_key(Value, Map)  
+  end.
+  	]]></prop>
+    <prop name="expr.state" Map="NewMap" NextKey="NewNextKey"/>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <mix name="Mix">
+    <folder name="Client">
+      <solicit name="DeleteName" service="Sequencer" fields="DELETE key">
+        <response name="Error" fields="error"/>
+        <response name="Ok" fields="OK"/>
+      </solicit>
+      <solicit name="GetName" service="Sequencer" fields="GET key">
+        <response name="Error" fields="error"/>
+        <response name="Ok" fields="first_name last_name"/>
+      </solicit>
+      <solicit name="InsertName" service="Sequencer" fields="INSERT first_name last_name">
+        <response name="Ok" fields="key"/>
+      </solicit>
+      <solicit name="ListNames" service="Sequencer" fields="LIST">
+        <response name="Ok" fields="records"/>
+      </solicit>
+    </folder>
+    <folder name="Server">
+      <request name="Delete" service="Database" fields="DELETE key">
+        <reply name="Error" fields="error"/>
+        <reply name="Ok" fields="OK"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Key = get("key"),
+
+case ExistFun(Key, Map) of
+  true ->
+    NewMap =
+      maps:remove(Key, Map),
+    "Ok";
+  
+  _Otherwise ->
+    put("error", Error),
+    "Error"
+end.
+				]]></prop>
+      </request>
+      <request name="Get" service="Database" fields="GET key">
+        <reply name="Error" fields="error"/>
+        <reply name="Ok" fields="first_name last_name"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Key = get("key"),
+
+case ExistFun(Key, Map) of
+  true ->
+    #{
+      Key:=#{
+        first_name := FirstName,
+        last_name := LastName}} = Map,
+    put("first_name", FirstName),
+    put("last_name", LastName),
+    "Ok";
+  
+  _Otherwise ->
+    put("error", Error),
+    "Error"
+end.
+				]]></prop>
+      </request>
+      <request name="Insert" service="Database" fields="INSERT first_name last_name">
+        <reply name="Ok" fields="key"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Record =
+  #{
+    first_name => get("first_name"),
+    last_name => get("last_name")},
+
+NewMap =
+  Map#{
+    NextKey => Record},
+
+put("key", NextKey),
+
+NewNextKey =
+  NextKey + 1,
+
+"Ok".
+				]]></prop>
+      </request>
+      <request name="List" service="Database" fields="LIST">
+        <reply name="Ok" fields="records"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("records", maps:to_list(Map)),
+"Ok".
+				]]></prop>
+      </request>
+    </folder>
+  </mix>
+</folder>

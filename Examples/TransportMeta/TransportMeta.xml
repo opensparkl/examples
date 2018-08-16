@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Transport_xmp">
+  <service name="Sequencer" provision="sequencer"/>
+  <field name="goods_type" type="string"/>
+  <field name="TRUCK"/>
+  <field name="PLANE"/>
+  <field name="CARGO"/>
+  <mix name="Mix">
+    <folder name="Order">
+      <service name="LocalGoods" provision="expr">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+ServiceName = Meta(name).
+        ]]></prop>
+      </service>
+      <service name="Express" provision="expr">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+ServiceName = Meta(name).
+        ]]></prop>
+      </service>
+      <service name="Overseas" provision="expr">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+ServiceName = Meta(name).
+        ]]></prop>
+      </service>
+      <notify name="SendCargo" service="Sequencer" clients="LocalGoods Express Overseas" fields="goods_type">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("goods_type", ServiceName),
+true.
+        ]]></prop>
+        <prop name="expr.auto" count="1"/>
+      </notify>
+    </folder>
+    <folder name="Management">
+      <service name="Management" provision="expr"/>
+      <request name="ByMeansOf" service="Management" fields="goods_type">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+case get("goods_type") of
+    "LocalGoods" ->
+      "Truck";
+    
+    "Express" ->
+      "Plane";
+    
+    "Overseas" ->
+      "Cargo"
+end.
+        ]]></prop>
+        <reply name="Truck" fields="TRUCK"/>
+        <reply name="Plane" fields="PLANE"/>
+        <reply name="Cargo" fields="CARGO"/>
+      </request>
+    </folder>
+    <folder name="Logistics">
+      <service name="Logistics" provision="expr"/>
+      <consume name="TruckDriver" service="Logistics" fields="TRUCK"/>
+      <consume name="PlaneDriver" service="Logistics" fields="PLANE"/>
+      <consume name="ShipCaptain" service="Logistics" fields="CARGO"/>
+    </folder>
+  </mix>
+</folder>

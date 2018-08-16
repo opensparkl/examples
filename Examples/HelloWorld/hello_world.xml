@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="hello_world">
+  <field name="START"/>
+  <field name="message" type="string"/>
+  <service name="Expr" provision="expr"/>
+  <service name="Sequencer" provision="sequencer"/>
+  <mix name="Mix">
+    <solicit name="Start" service="Sequencer" fields="START">
+      <response name="Ok" fields="message"/>
+    </solicit>
+    <request name="SendMessage" service="Expr" fields="START">
+      <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Message = "Hello, World!",
+put("message", Message),
+  "Ok".
+      ]]></prop>
+      <reply name="Ok" fields="message"/>
+    </request>
+  </mix>
+</folder>

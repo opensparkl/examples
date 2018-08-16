@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="TinyRest">
+	<grant permission="x" to="*"/>
+  <mix name="Mix">
+    <service name="Sequencer" provision="sequencer"/>
+    <service name="REST" provision="rest"/>
+    <field name="LIST"/>
+    <field name="DELETE"/>
+    <field name="PUT"/>
+    <field name="GET"/>
+    <field name="id" type="utf8"/>
+    <field name="name" type="utf8"/>
+    <field name="error" type="utf8"/>
+    <field name="all_names" type="json"/>
+    <folder name="API">
+      <solicit name="Get" service="Sequencer" clients="REST" fields="GET id">
+        <response name="Ok" fields="GET name"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="Insert" service="Sequencer" clients="REST" fields="PUT name">
+        <response name="Ok" fields="id"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="Delete" service="Sequencer" clients="REST" fields="DELETE id">
+        <response name="Ok" fields="name"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="List" service="Sequencer" clients="REST" fields="LIST">
+        <response name="Ok" fields="all_names"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+    </folder>
+    <folder name="Impl">
+      <request name="Get" service="REST" fields="GET id">
+        <reply name="Ok" fields="name"/>
+        <reply name="Error" fields="error"/>
+      </request>
+      <request name="Insert" service="REST" fields="PUT name">
+        <reply name="Ok" fields="id"/>
+        <reply name="Error" fields="error"/>
+      </request>
+      <request name="Delete" service="REST" fields="DELETE id">
+        <reply name="Ok" fields="name"/>
+        <reply name="Error" fields="error"/>
+      </request>
+      <request name="List" service="REST" fields="LIST">
+        <reply name="Ok" fields="all_names"/>
+        <reply name="Error" fields="error"/>
+      </request>
+    </folder>
+  </mix>
+</folder>

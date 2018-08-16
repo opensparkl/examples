@@ -1,0 +1,118 @@
+<folder name="Traf_Lig_Subr">
+  <service name="Junction" provision="expr">
+    <prop name="expr.state" PedLight="NewPedLight" TrafLight="NewTrafLight"/>
+    <prop name="expr.init" PedLight="red" TrafLight="green"/>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <folder name="MasterFolder">
+    <service name="Master" provision="subr">
+      <prop name="subr.import" key="SubrKey"/>
+    </service>
+    <field name="PEOPLE"/>
+    <field name="START"/>
+    <field name="TRAFFIC"/>
+    <mix name="MasterMix">
+      <notify name="Start" service="Sequencer" clients="Junction" fields="START">
+        <prop name="expr.auto" interval="15s"/>
+      </notify>
+      <folder name="Get">
+        <request name="GetMode" service="Master" fields="START">
+          <reply name="People" fields="PEOPLE"/>
+          <reply name="Traffic" fields="TRAFFIC"/>
+          <prop name="subr.spec" function="ModeFun"/>
+        </request>
+      </folder>
+      <folder name="Set">
+        <consume name="SetPeople" service="Junction" fields="PEOPLE">
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewTrafLight = red,
+NewPedLight = green.
+          ]]></prop>
+        </consume>
+        <consume name="SetTraffic" service="Junction" fields="TRAFFIC">
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewTrafLight = green,
+NewPedLight = red.
+          ]]></prop>
+        </consume>
+      </folder>
+      <folder name="MasterTest">
+        <field name="TEST"/>
+        <field name="test_states" type="json"/>
+        <solicit name="StartTest" service="Sequencer" fields="TEST">
+          <response name="Ok" fields="test_states"/>
+        </solicit>
+        <request name="TestPress" service="Master" fields="TEST">
+          <reply name="Ok" fields="START"/>
+        </request>
+        <request name="GetState" service="Junction" fields="PEOPLE">
+          <reply name="Ok" fields="test_states"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+States = #{
+          	"pedestrian" => u(PedLight),
+            "traffic" => u(TrafLight)
+          },
+put("test_states", States),
+"Ok".
+	]]></prop>
+        </request>
+      </folder>
+    </mix>
+  </folder>
+  <folder name="SubrFolder">
+    <service name="Subr" provision="subr">
+      <prop name="subr.export" key="SubrKey"/>
+    </service>
+    <field name="MODE"/>
+    <field name="NO"/>
+    <field name="YES"/>
+    <field name="PRESS"/>
+    <mix name="SubrMix">
+      <service name="Button" provision="expr">
+        <prop name="expr.state" PersonWaiting="NewPersonWaiting"/>
+        <prop name="expr.init" PersonWaiting="false"/>
+      </service>
+      <folder name="SubrGet">
+        <solicit name="SubrGetMode" service="Sequencer" clients="Subr" fields="MODE">
+          <response name="People" fields="YES"/>
+          <response name="Traffic" fields="NO"/>
+          <prop name="subr.spec" function="ModeFun"/>
+        </solicit>
+        <request name="IsPersonWaiting" service="Button" fields="MODE">
+          <reply name="Yes" fields="YES"/>
+          <reply name="No" fields="NO"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+case PersonWaiting of
+  true ->
+    NewPersonWaiting = false,
+    "Yes";
+  false ->
+    "No"
+ end.
+          ]]></prop>
+        </request>
+      </folder>
+      <folder name="Manual">
+        <consume name="IsPressed" service="Button" fields="PRESS">
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewPersonWaiting = true.
+          ]]></prop>
+        </consume>
+      </folder>
+      <folder name="Test">
+        <field name="TEST_PRESS"/>
+        <field name="OK"/>
+        <solicit name="TestPress" service="Sequencer" clients="Subr" fields="TEST_PRESS">
+          <response name="Ok" fields="OK"/>
+        </solicit>
+        <request name="TestIsPressed" service="Button" fields="TEST_PRESS">
+          <reply name="Ok" fields="OK"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewPersonWaiting = true,
+"Ok".
+          ]]></prop>
+        </request>
+      </folder>
+    </mix>
+  </folder>
+</folder>

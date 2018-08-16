@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="bitcoin_python">
+  <grant permission="x" to="*"/>
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Bitcoin" provision="rest"/>
+  <field name="currency" type="utf8"/>
+  <field name="crypto_currency" type="utf8"/>
+  <field name="crypto_price" type="float"/>
+  <field name="btc_price" type="float"/>
+  <field name="price_in_btc" type="float"/>
+  <field name="error" type="utf8"/>
+  <mix name="Mix">
+    <solicit name="GetBTC" service="Sequencer" clients="Bitcoin" fields="currency">
+      <response name="Ok" fields="btc_price"/>
+      <response name="Error" fields="error"/>
+    </solicit>
+    <solicit name="GetCrypto" service="Sequencer" clients="Bitcoin" fields="crypto_currency currency">
+      <response name="Ok" fields="crypto_price"/>
+      <response name="Error" fields="error"/>
+    </solicit>
+    <folder name="Bitcoin">
+      <request name="GetBTC" service="Bitcoin" fields="currency">
+        <reply name="Ok" fields="btc_price"/>
+        <reply name="Error" fields="error"/>
+      </request>
+      <request name="GetCrypto" service="Bitcoin" fields="crypto_currency">
+        <reply name="Ok" fields="price_in_btc"/>
+        <reply name="Error" fields="error"/>
+      </request>
+      <request name="Convert" service="Bitcoin" fields="price_in_btc btc_price">
+        <reply name="Ok" fields="crypto_price"/>
+      </request>
+    </folder>
+  </mix>
+</folder>

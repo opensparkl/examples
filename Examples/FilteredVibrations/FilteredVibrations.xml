@@ -1,0 +1,73 @@
+<folder name="FilteredVibrations">
+  <service name="Sequencer" provision="sequencer"/>
+  <folder name="Vibration">
+    <service name="Master" provision="subr">
+      <prop name="subr.import" key="VibrKey"/>
+    </service>
+    <service name="Vibrations" provision="expr"/>
+    <mix name="MasterMix">
+      <field name="vibration" type="integer"/>
+      <notify name="GenVibr" service="Sequencer" clients="Vibrations" fields="vibration">
+      </notify>
+      <consume name="SetVibr" service="Master" fields="vibration">
+        <prop name="subr.spec" function="VibrFun"/>
+      </consume>
+    </mix>
+  </folder>
+  <folder name="Alerts">
+    <service name="AlertSys" provision="expr">
+      <prop name="expr.state" Colour="NewColour"/>
+    </service>
+    <service name="Subr" provision="subr">
+      <prop name="subr.export" key="VibrKey"/>
+    </service>
+    <mix name="AmberSlave">
+      <field name="amber" type="integer"/>
+      <notify name="AmberAlert" service="Sequencer" clients="Subr" fields="amber">
+        <prop name="params"><![CDATA[
+          vibration:amber 
+          ]]></prop>
+        <prop name="subr.spec" function="VibrFun" content-type="text/x-erlang"><![CDATA[
+get("vibration") < 70 andalso get("vibration") > 30.
+        ]]></prop>
+      </notify>
+      <consume name="SetAmber" service="AlertSys" fields="amber">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = amber.
+        ]]></prop>
+      </consume>
+    </mix>
+    <mix name="GreenSlave">
+      <field name="green" type="integer"/>
+      <notify name="GreenAlert" service="Sequencer" clients="Subr" fields="green">
+        <prop name="params"><![CDATA[
+          vibration:green
+          ]]></prop>
+        <prop name="subr.spec" function="VibrFun" content-type="text/x-erlang"><![CDATA[
+get("vibration") =< 30.
+        ]]></prop>
+      </notify>
+      <consume name="SetGreen" service="AlertSys" fields="green">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = green.
+        ]]></prop>
+      </consume>
+    </mix>
+    <mix name="RedSlave">
+      <field name="red" type="integer"/>
+      <notify name="RedAlert" service="Sequencer" clients="Subr" fields="red">
+        <prop name="params"><![CDATA[
+          vibration:red
+          ]]></prop>
+        <prop name="subr.spec" function="VibrFun" content-type="text/x-erlang"><![CDATA[
+get("vibration") >= 70.
+        ]]></prop>
+      </notify>
+      <consume name="SetRed" service="AlertSys" fields="red">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewColour = red.
+        ]]></prop>
+      </consume>
+    </mix>
+  </folder>
+</folder>

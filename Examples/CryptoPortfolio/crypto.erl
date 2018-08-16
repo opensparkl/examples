@@ -1,0 +1,1 @@
+["etc","eth","xrp","zec","ltc","dash"]

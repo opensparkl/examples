@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Tutorial1">
+  <service name="Sequencer" provision="sequencer"/>
+  <field name="beer" type="string"/>
+  <mix name="Mix">
+    <solicit name="GetBeer" service="Sequencer" fields="beer">
+      <response name="Ok" fields="beer"/>
+    </solicit>
+  </mix>
+</folder>

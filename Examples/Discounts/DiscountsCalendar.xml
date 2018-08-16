@@ -1,0 +1,592 @@
+<folder name="DiscountsCalendar">
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Discounts" provision="expr">
+    <prop name="expr.init.AlreadySent" content-type="text/x-erlang"><![CDATA[% Will have company names as keys and true or false as values
+% I.e. - "Coffee Rouge" => true - means discount alert for this company has already been sent
+#{}]]></prop>
+    <prop name="expr.state" AlreadySent="NewAlreadySent"/>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[DatabaseUrl = "https://discounts-4bb20.firebaseio.com/discounts.json",
+UrlRoot = "https://discounts-4bb20.firebaseio.com/discounts/",
+
+% Constructs error message based on error class, type and name of the operation that runs into the error
+ErrorFun =
+    fun(Class,Type,Name) ->
+        #{"class":=#{Class:=ErrorClass}} = Errors,
+        #{"type":=#{Type:=ErrorType}} = Errors,
+        {ErrorType,ErrorClass,Name}
+    end,
+  
+% Appends database's Url with record ID
+ComputeUrl = 
+    fun(Key) ->
+        UrlRoot ++ Key ++ ".json"
+    end,
+  
+% Checks data type of ID, if not string converts it  
+CheckKey =
+    fun(Key) ->
+        sse_type_util:coerce(string, Key)
+    end,
+  
+% Database query. Method can be get/post/delete  
+DataRequest = 
+    fun(Request,Method) ->
+        {RequestTag, RequestBody} = httpc:request(Method,Request,[],[]),
+        Header = element(1,RequestBody),
+        StatusCode = element(2,Header),
+        TupleSize = size(RequestBody),
+        
+        if 
+            % If tag (first element) of reply is error, sends external error message
+            RequestTag == error orelse TupleSize < 3 ->
+                {"external","ExternalError"};
+          
+            % If reply comes back with "null" no record corresponds to the ID
+            element(3,RequestBody) == "null" ->
+                {"external","NoSuchKey"};
+          
+            % 401 means no write or read permission
+            StatusCode == 401 ->
+                {"external","NoAuth"};
+          
+            % Error codes are 400 and above
+            StatusCode >= 400 ->
+                {"external","StatusCodeError"};
+          
+            % If successful, converts the JSON record to an Erlang term and sends it
+            true ->
+                % The conversion returns {ok, Result}
+                sse_json:decode(element(3,RequestBody))
+        end
+    end.]]></prop>
+    <prop name="expr.init.Errors" content-type="text/x-erlang"><![CDATA[% Error messages to be sent in ErrorFun(Class,Type,Name) function
+#{
+    "class" => #{
+        "external" => "External",
+        "validation" => "Validation"
+    },
+    
+    "type" => #{
+        "ExternalError" => "HTTP request failed",
+        "StatusCodeError" => "HTTP request failed with 4xx error code",
+        "NoSuchKey" => "Key does not exist",
+        "NoAuth" => "No read or write permissions",
+        "StartTimeList" => "Start time must be a list of three numbers, e.g. [12,1,1]",
+        "EndTimeList" => "End time must be a list of three numbers, e.g. [12,1,1]",
+        "NoCompany" => "Company name missing",
+        "NoDesc" => "Description missing",
+        "DateFormat" => "Date must be numbers, all positive or zero, e.g. [12,10,0]",
+        "DateStartHour" => "Start hour cannot be higher than 23",
+        "DateEndHour" => "End hour cannot be higher than 23",
+        "DateStartMinute" => "Start minute cannot be higher than 59",
+        "DateEndMinute" => "End minute cannot be higher than 59",
+        "DateStartSecond" => "Start second cannot be higher than 59",
+        "DateEndSecond" => "End second scannot be higher than 59"      
+    }
+}]]></prop>
+  </service>
+  <field name="OK"/>
+  <field name="DELETE"/>
+  <field name="company" type="string"/>
+  <field name="desc" type="string"/>
+  <field name="end_time" type="term"/>
+  <field name="start_time" type="term"/>
+  <field name="bulk" type="term"/>
+  <field name="key" type="term"/>
+  <field name="error" type="term"/>
+  <field name="record" type="term"/>
+  <mix name="Mix">
+    <folder name="API">
+      <field name="SAVE"/>
+      <field name="GET"/>
+      <field name="keys" type="term"/>
+      <field name="GET_KEYS"/>
+      <solicit name="Feed" service="Sequencer" fields="company desc end_time start_time">
+        <response name="Ok" fields="OK key"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="BulkFeed" service="Sequencer" fields="bulk">
+        <response name="Ok" fields="OK"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <solicit name="Delete" service="Sequencer" fields="DELETE GET key">
+        <response name="Ok" fields="OK record"/>
+        <response name="Error" fields="error"/>
+      </solicit>
+      <request name="GetKeys" service="Discounts" fields="GET_KEYS">
+        <reply name="Ok" fields="keys"/>
+        <reply name="Error" fields="error"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[% Retrieves the keys of all records from the database.
+Request = {DatabaseUrl,[]},
+{Tag, Result} = DataRequest(Request,get),
+
+case Result of 
+    #{} ->
+        Keys = maps:keys(Result),
+        put("keys", Keys),
+        "Ok";
+    _Otherwise ->
+        % Sends error if cannot connect to Database.
+        Name = Meta(name),
+        Error = ErrorFun(Tag,Result,Name),
+        put("error", Error),
+        "Error" 
+end.
+  
+    ]]></prop>
+      </request>
+      <request name="GetRecord" service="Discounts" fields="GET key">
+        <reply name="Ok" fields="record"/>
+        <reply name="Error" fields="error"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[% Make sure key is string
+Key = get("key"),
+StringKey = CheckKey(Key),
+  
+% Build request URL using key and baseUrl
+GetUrl = ComputeUrl(StringKey),
+
+% Send request and bind Result to record field
+Request = {GetUrl,[]},
+{Tag,Result} = DataRequest(Request,get),
+  
+case Result of
+    #{} ->
+        put("record", Result),
+        "Ok";
+    _Otherwise ->
+        % Build and send error message using:
+        %     Error message received from DataRequest fun
+        %     Name of the operation
+        Name = Meta(name),
+        Error = ErrorFun(Tag,Result,Name),
+        put("error", Error),
+        "Error" 
+end.]]></prop>
+      </request>
+      <request name="Backup" service="Discounts" fields="SAVE">
+        <reply name="Ok" fields="OK"/>
+        <reply name="Error" fields="error"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[% Saves the content of the database - as an Erlang list of maps [#{},#{}]
+% Content is saved to the SPARKL node's directory (e.g. nodes/sse1/)
+
+Request = {DatabaseUrl,[]},
+{Tag,Result} = DataRequest(Request,get),
+
+case Result of
+    #{} ->
+        Backup = maps:values(Result),
+        file:write_file(
+            "Backup.erl",
+            io_lib:format("~p~n~n", [Backup])),
+        "Ok";
+    
+    _Otherwise ->
+        Name = Meta(name),
+        Error = ErrorFun(Tag,Result,Name),
+        put("error", Error),
+        "Error" 
+end.
+
+
+]]></prop>
+      </request>
+    </folder>
+    <folder name="IMPL">
+      <field name="discount_alerts" type="term"/>
+      <folder name="Management">
+        <field name="FIRST_PASS"/>
+        <consume name="BulkHandle" service="Discounts" fields="bulk">
+          <reply name="Ok" fields="bulk company desc end_time start_time"/>
+          <reply name="Done" fields="OK"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% On a bulk import, takes the input Erlang list of records into individual records and sends them through validation then on to the Feed operation.
+
+Bulk = get("bulk"),
+
+case Bulk of 
+    [] ->
+        "Done";
+    
+    _Otherwise ->
+        [Record | RemainingBulk] = Bulk,
+        put("bulk", RemainingBulk),
+        put("desc", maps:get("desc", Record)),
+        put("end_time", maps:get("finish", Record)),
+        put("start_time", maps:get("start", Record)),
+        put("company", maps:get("title", Record)),
+        "Ok"
+end.]]></prop>
+        </consume>
+        <request name="FirstCheck" service="Discounts" fields="end_time start_time">
+          <reply name="Ok" fields="FIRST_PASS"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Checks if both start time and end time are in valid format, e.g. [12,0,0] - a list of three integers.
+
+Name = Meta(name),
+StartTime = get("start_time"),
+EndTime = get("end_time"),
+
+Result =
+    if 
+        is_list(StartTime) =:= false ->
+            {error, "StartTimeList"};
+    
+        is_list(EndTime) =:= false ->
+            {error, "EndTimeList"};
+        length(StartTime) =/= 3 ->
+            {error, "StartTimeList"};
+        
+        length(EndTime) =/= 3 ->
+            {error, "EndTimeList"};
+        true ->
+            ok
+    end,
+
+case Result of
+    ok ->
+        "Ok";
+
+    {error, ErrorType} ->
+        Error = ErrorFun("validation",ErrorType,Name),
+        put("error", Error),
+        "Error"
+end.
+          ]]></prop>
+        </request>
+        <request name="FinalCheck" service="Discounts" fields="FIRST_PASS company desc end_time start_time">
+          <reply name="Ok" fields="OK"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Company = get("company"), 
+EndTime = get("end_time"), 
+StartTime = get("start_time"), 
+Desc = get("desc"),
+
+% Checks if all elements of the lists are numbers and none are negative.
+[StartHour, StartMinute, StartSecond] = StartTime,
+CheckStartTime = [N || N <- StartTime, is_integer(N), N >= 0],
+[EndHour, EndMinute, EndSecond] = EndTime,
+CheckEndTime = [N || N <- EndTime, is_integer(N), N >= 0],  
+
+Name = Meta(name),
+TrimCompany = string:strip(Company),
+TrimDesc = string:strip(Desc),
+  
+% Constructs error message depending on validation error.
+Result =
+    if 
+        length(TrimCompany) == 0 ->
+            {error, "NoCompany"};
+    
+        length(TrimDesc) == 0 ->
+            {error, "NoDesc"};
+     
+        CheckStartTime =/= StartTime ->
+            {error, "DateFormat"};
+   
+        CheckEndTime =/= EndTime ->
+            {error, "DateFormat"};
+    
+        StartHour > 23 ->
+            {error, "DateStartHour"};
+    
+        EndHour > 23 ->
+            {error, "DateEndHour"};
+    
+        StartMinute > 59 ->
+            {error, "DateStartMinute"};
+    
+        EndMinute > 59 ->
+            {error, "DateEndMinute"};
+    
+        StartSecond > 59 ->
+            {error, "DateStartSecond"};
+    
+        EndSecond > 59 ->
+            {error, "DateEndSecond"};
+    
+        true ->
+            ok
+    end,
+
+ case Result of
+   ok ->
+     "Ok";
+   
+   {error, ErrorType} ->
+      Error = ErrorFun("validation",ErrorType,Name),
+      put("error", Error),
+      "Error"
+ end.]]></prop>
+        </request>
+        <request name="Feed" service="Discounts" fields="OK company desc end_time start_time">
+          <reply name="Ok" fields="key"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Finish and start time should be a list of integers, like: [Hour,Minute,Second]
+Company = get("company"),
+EndTime = get("end_time"),
+StartTime = get("start_time"),
+Desc = get("desc"),
+
+ContentType = "application/json",
+ 
+% Builds new record for the database from input fields.  
+NewRecord = #{
+              "desc"=>u(Desc),
+              "finish"=>EndTime,
+              "start"=>StartTime,
+              "title"=>u(Company)},
+% Converts record to JSON.
+{ok,Body} = sse_json:encode(NewRecord),
+
+Request =
+      {DatabaseUrl, [], ContentType, Body},
+
+% Adds record to database and sends the key assigned to it.
+% If it cannot access database, sends an error message.
+{Tag, Result} = DataRequest(Request,post),
+ 
+case Result of
+    #{} ->
+        KeyValue = maps:get("name",Result),
+        put("key", KeyValue),
+        "Ok";
+   
+  _Otherwise ->
+      Name = Meta(name),
+      Error = ErrorFun(Tag,Result,Name),
+      put("error", Error),
+      "Error" 
+end.]]></prop>
+        </request>
+        <request name="Delete" service="Discounts" fields="DELETE key record">
+          <reply name="Ok" fields="OK"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Compute URL from key
+Record = get("record"),
+Key = get("key"),
+
+StringKey = CheckKey(Key),
+DeleteUrl = ComputeUrl(StringKey),
+Request = {DeleteUrl,[]},
+  
+% When deleting, expected errors are ExternalError (e.g. no connection) and NoAuth (e.g. no write permissions)
+{Tag,Reply} = DataRequest(Request, delete),
+  
+if
+    Tag == ok ->
+        % If successful, also deletes the company's state from AlreadySent.
+        Company = maps:get("title", Record),
+        NewAlreadySent = maps:remove(Company, AlreadySent),
+        "Ok";
+
+    Reply == "NoAuth" ->
+        Name = Meta(name),
+        Error = ErrorFun(Tag,Reply,Name),
+        put("error", Error),
+        "Error";
+
+    Reply == "ExternalError" ->
+        Name = Meta(name),
+        Error = ErrorFun(Tag,Reply,Name),
+        put("error", Error),
+        "Error";
+    
+    true ->
+        % If successful, also deletes the company's state from AlreadySent.
+        Company = maps:get("title", Record),
+        NewAlreadySent = maps:remove(Company, AlreadySent),
+        "Ok"
+end.]]></prop>
+        </request>
+      </folder>
+      <folder name="Alerts">
+        <field name="PING"/>
+        <field name="DONE"/>
+        <field name="all_discounts" type="term"/>
+        <field name="discount" type="term"/>
+        <notify name="Start" service="Sequencer" clients="Discounts" fields="PING">
+          <prop name="expr.auto" interval="30m"/>
+        </notify>
+        <request name="Interrogate" service="Discounts" fields="PING">
+          <reply name="Ok" fields="all_discounts"/>
+          <reply name="Error" fields="error"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Request = {DatabaseUrl,[]},
+{Tag,Result} = DataRequest(Request,get),
+
+case Result of 
+    #{} ->
+        AllDiscounts = maps:values(Result),
+        put("all_discounts", AllDiscounts),
+        "Ok";
+
+    _Otherwise ->
+        Name = Meta(name),
+        Error = ErrorFun(Tag,Result,Name),
+        put("error", Error),
+        "Error"
+end.
+]]></prop>
+        </request>
+        <consume name="CrawlRecords" service="Discounts" fields="all_discounts">
+          <reply name="Ok" fields="discount all_discounts"/>
+          <reply name="Done" fields="DONE"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+AllDiscounts = get("all_discounts"),
+
+% Recursively cuts the json into lists, each comprising:
+  % Description (<<"20% off">>) 
+  % End of discount ([17,30,0]) 
+  % Start of discount ([11,0,0]) 
+  % Company name (<<"SPARKL canteen">>)
+
+case AllDiscounts of
+    % If discounts list is empty we are done
+    [] ->
+        "Done";
+  
+_Otherwise ->
+    % Take first discount record send it in discount field, send remaining records in all_discounts to invoke CrawlRecords again
+    [DiscountMap | RemainingDiscounts] = AllDiscounts,
+    put("discount", DiscountMap),
+    put("all_discounts", RemainingDiscounts),
+    
+    % Specify starting state of company - discount message not sent yet - if it has no state yet
+    Company = maps:get("title", DiscountMap),
+    case maps:is_key(Company, AlreadySent) of
+        true ->
+            "Ok";
+
+        false ->       
+            NewAlreadySent = AlreadySent#{Company=>false},
+            "Ok"
+    end          
+end.
+    ]]></prop>
+        </consume>
+        <request name="IsDiscount" service="Discounts" fields="discount">
+          <reply name="Yes" fields="discount_alerts"/>
+          <reply name="No" fields="DONE"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+DiscountMap = get("discount"),
+
+% Calculates local time by adding the value of TZ to universal time 
+TZ = 1,
+{Date,{H,M,S}} =  calendar:universal_time(),
+CurrentTime = {H+TZ, M, S},  
+  
+% Binds input field (discount) values to variables
+Company = maps:get("title", DiscountMap),
+DiscountText = maps:get("desc", DiscountMap),
+[StartHour,StartMinute,StartSecond] = maps:get("start", DiscountMap),
+StartTime =  {StartHour,StartMinute,StartSecond}, 
+[EndHour,EndMinute,EndSecond] = maps:get("finish", DiscountMap),
+EndTime = {EndHour,EndMinute,EndSecond},  
+  
+% Compute discount alerts  
+StartDiscount =
+    integer_to_list(StartHour) ++ ":" 
+    ++ integer_to_list(StartMinute),
+EndDiscount = 
+    integer_to_list(EndHour) ++ ":" 
+    ++ integer_to_list(EndMinute),   
+DiscountAlerts = #{
+                   "Company"=> Company, 
+                   "Discount"=>DiscountText,
+                   "Start of discount"=>u(StartDiscount), 
+                   "End of discount"=>u(EndDiscount)},
+
+put("discount_alerts", DiscountAlerts),
+
+% Gets state of company (i.e. whether alert has been sent)
+% CrawlRecords operation makes sure all company has state
+HasBeenSent = maps:get(Company,AlreadySent),
+
+% Checks if current time is within discount period
+WithinTime = 
+    if
+        CurrentTime < StartTime ->
+            false;
+
+        CurrentTime > EndTime ->
+            false;
+
+        true ->
+            true
+    end,
+
+% Decides whether to send alert and manages state (has been sent or not)
+if
+    not HasBeenSent andalso WithinTime ->
+    % Send alert and set company state to true (i.e. alert sent)
+        NewAlreadySent = maps:update(Company, true, AlreadySent), 
+        "Yes";
+  
+    HasBeenSent andalso not WithinTime ->
+    % Reset state to false after discount period has ended
+        NewAlreadySent = maps:update(Company, false, AlreadySent),
+        "No";
+  
+    true ->
+    % Otherwise do nothing
+        "No"
+end.]]></prop>
+        </request>
+      </folder>
+      <folder name="Messages">
+        <service name="LibSlack" provision="subr">
+          <prop name="subr.import" key="lib.slack.Slack"/>
+        </service>
+        <field name="heading" type="utf8"/>
+        <field name="message" type="term"/>
+        <field name="colour" type="term"/>
+        <request name="FormError" service="Discounts" fields="error">
+          <reply name="Ok" fields="colour message heading"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Error = get("error"),
+
+% Constructs error message based on input.
+{ErrorMessage, ErrorType, Name} = Error,
+
+Type = ErrorType ++ " error",
+
+Heading = Name ++ " operation failed",
+Colour = red,
+Message = #{Type => u(ErrorMessage)},
+
+put("message", Message),
+put("colour", Colour),
+put("heading", Heading),
+
+"Ok".
+]]></prop>
+        </request>
+        <request name="FormDiscount" service="Discounts" fields="discount_alerts">
+          <reply name="Ok" fields="colour heading message"/>
+          <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+DiscountAlerts = get("discount_alerts"),
+
+% Constructs the discount alert message.
+Colour = green,
+Heading = "Time to reap your reward!",
+Message = DiscountAlerts,
+
+put("message", Message),
+put("colour", Colour),
+put("heading", Heading),
+
+"Ok".]]></prop>
+        </request>
+        <consume name="SendMessage" service="LibSlack" fields="colour heading message">
+          <prop name="params"><![CDATA[
+map:message
+          ]]></prop>
+        </consume>
+      </folder>
+    </folder>
+  </mix>
+</folder>

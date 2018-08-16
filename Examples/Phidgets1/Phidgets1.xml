@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Phidgets1">
+  <service name="Rotary" provision="phidget">
+    <prop name="phidget.spec" kind="PhidgetInterfaceKit" domains="domain.local"/>
+    <prop name="phidget.params" sensor0="position"/>
+  </service>
+  <service name="Servo" provision="phidget">
+    <prop name="phidget.spec" kind="PhidgetAdvancedServo" domains="domain.local"/>
+    <prop name="phidget.params" position0="position"/>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <field name="position" type="integer"/>
+  <mix name="Mix">
+    <notify name="Turn" service="Sequencer" clients="Rotary" fields="position"/>
+    <consume name="SetPosition" service="Servo" fields="position"/>
+  </mix>
+</folder>

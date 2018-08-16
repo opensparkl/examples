@@ -1,0 +1,162 @@
+<folder name="lib_bitcoin">
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Bitcoin" provision="expr">
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Open links (BitUrl, PolUrl) in browser for the values you can retrieve. 
+% JSON records are all transformed into Erlang terms.
+% All keys will be strings. E.g. "USD", "last", "BTC_ETH"
+BitUrl = "https://blockchain.info/ticker",
+PolUrl = "https://poloniex.com/public?command=returnTicker",
+Error = "Check connection",
+InvalidKey = "Currency not supported",
+  
+% Http get request. Call with Url parameters listed above.
+% Either returns an error message, or the body of the http reply
+HttpGet = 
+  fun(Url) ->
+    Request = httpc:request(get, {Url,[]},[],[]),
+    {RequestTag, RequestBody} = Request,
+
+    Header = element(1,RequestBody),
+    StatusCode = element(2,Header),
+    
+    if 
+      RequestTag =/= ok ->
+          Error;
+       StatusCode =/= 200 ->
+          Error;
+      true ->
+        RequestBody
+    end
+  end,
+
+% Returns the latest price or other value of Bitcoin or another crypto currency based on:
+%   The currency (e.g. "USD" or "BTC_ETC")
+%   The wanted value (e.g. "last") 
+%   Link to the API (e.g. "https://blockchain.info/ticker")
+% If the request fails, returns an error message
+
+GetValue = 
+  fun(CurKey, ValKey, Url) ->
+    RequestResult = HttpGet(Url),
+    
+    if 
+      RequestResult == Error ->
+        {error, {Error, Url}};
+      true ->
+        {Status_line, Headers, Body_Json} = RequestResult,
+        {ok,Body_Term} = sse_json:decode(Body_Json),
+      
+        % Check if CurKey is a valid key in the API/Url  
+        case maps:is_key(CurKey,Body_Term) of
+          true ->
+            ApiRecords = maps:get(CurKey, Body_Term),
+            maps:get(ValKey, ApiRecords);
+          false ->
+            {error, {InvalidKey, CurKey}}
+        end
+    end
+  end,
+  
+% Function takes a float and removes all but the last two digits after zero.
+ChangePretty = 
+  fun(Float) ->
+    List = float_to_list(Float,[{decimals, 2}]),
+    list_to_float(List)
+  end,
+
+% Poloniex API keys are in the form of "BTC_CurrencyCode" 
+GenerateKey = 
+  fun(String) ->
+    Compute = "btc_" ++ String,
+    string:to_upper(Compute)
+  end.
+    ]]></prop>
+  </service>
+  <service name="Export" provision="subr">
+    <prop name="subr.export" key="lib.bitcoin.Bitcoin"/>
+  </service>
+  <field name="currency" type="string"/>
+  <field name="crypto_currency" type="string"/>
+  <field name="crypto_price" type="float"/>
+  <field name="btc_price" type="float"/>
+  <field name="price_in_btc" type="float"/>
+  <field name="error" type="term"/>
+  <mix name="Mix">
+    <solicit name="GetBTC" service="Sequencer" clients="Export" fields="currency">
+      <response name="Ok" fields="btc_price"/>
+      <response name="Error" fields="error"/>
+    </solicit>
+    <solicit name="GetCrypto" service="Sequencer" clients="Export" fields="crypto_currency currency">
+      <response name="Ok" fields="crypto_price"/>
+      <response name="Error" fields="error"/>
+    </solicit>
+    <folder name="Bitcoin">
+      <request name="GetBTC" service="Bitcoin" fields="currency">
+        <reply name="Ok" fields="btc_price"/>
+        <reply name="Error" fields="error"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Takes the input field and converts it into a valid key for the Bitcoin API
+% e.g. usd becomes "USD"
+Key = string:to_upper(get("currency")),
+  
+% GetValue either:
+  % Returns the last value of Bitcoin in the specified currency
+  % Sends an error message if:
+    % The currency is not supported 
+    % The HTTP request fails
+Result = GetValue(Key, "last", BitUrl),
+
+case Result of
+  {error, ErrorMessage} ->
+    put("error", ErrorMessage),
+    "Error";
+  _Otherwise ->
+    put("btc_price", Result),
+    "Ok"
+ end.
+  
+        ]]></prop>
+      </request>
+      <request name="GetCrypto" service="Bitcoin" fields="crypto_currency">
+        <reply name="Ok" fields="price_in_btc"/>
+        <reply name="Error" fields="error"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Takes the input field and converts it into a valid key for the Poloniex API
+% e.g. etc becomes "BTC_ETC"
+Key 
+  = GenerateKey(
+    get(
+      "crypto_currency")),
+  
+% GetValue either:
+  % Returns the last value of the specified cryptocurrency relative to Bitcoin
+  % Sends an error message if:
+    % The cryptocurrency is not supported 
+    % The HTTP request fails  
+Result = GetValue(Key, "last", PolUrl),
+
+case Result of
+  {error, ErrorMessage} ->
+    put("error", ErrorMessage),
+    "Error";
+  _Otherwise ->
+    put("price_in_btc", Result),
+    "Ok"
+ end.
+        ]]></prop>
+      </request>
+      <request name="Convert" service="Bitcoin" fields="price_in_btc btc_price">
+        <reply name="Ok" fields="crypto_price"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+% Returns the price of the crypto currency relative to the price of Bitcoin.
+Price = get("price_in_btc") * get("btc_price"),
+
+put(
+  "crypto_price", Price),
+"Ok".
+        ]]></prop>
+      </request>
+    </folder>
+  </mix>
+</folder>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="LockExample">
+  <service name="Expr" provision="expr">
+    <prop name="expr.state" IsLocked="NewIsLocked"/>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+IsLocked = false.
+    ]]></prop>
+  </service>
+  <field name="GET_LOCK"/>
+  <field name="LOCK"/>
+  <field name="UNLOCK"/>
+  <field name="error" type="string"/>
+  <mix name="Mix">
+    <request name="Lock" service="Expr" fields="GET_LOCK">
+      <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+case IsLocked of  
+  true ->    
+    put("error", Already locked"),    
+    "Error";   
+
+  false ->    
+    NewIsLocked = true,    
+    "Ok"
+end.
+      ]]></prop>
+      <reply name="Ok" fields="LOCK"/>
+      <reply name="Error" fields="error"/>
+    </request>
+    <consume name="Unlock" service="Expr" fields="UNLOCK">
+      <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewIsLocked = false.
+      ]]></prop>
+    </consume>
+  </mix>
+</folder>

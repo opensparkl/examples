@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Tutorial4">
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Bartender" provision="expr"/>
+  <field name="ORDER"/>
+  <field name="gin" type="string"/>
+  <field name="tonic" type="string"/>
+  <mix name="Mix">
+    <folder name="Client">
+      <solicit name="Order" service="Sequencer" fields="ORDER">
+        <response name="Ok" fields="gin tonic"/>
+      </solicit>
+    </folder>
+    <folder name="Server">
+      <request name="AddTonic" service="Bartender" fields="ORDER">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("tonic", "Schweppes"),
+"Ok".
+        ]]></prop>
+        <reply name="Ok" fields="tonic"/>
+      </request>
+      <request name="AddGin" service="Bartender" fields="ORDER">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("gin", "Gordon's"),
+"Ok".
+        ]]></prop>
+        <reply name="Ok" fields="gin"/>
+      </request>
+    </folder>
+  </mix>
+</folder>

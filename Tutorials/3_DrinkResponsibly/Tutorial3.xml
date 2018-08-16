@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Tutorial3">
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Bartender" provision="expr"/>
+  <field name="BEER"/>
+  <field name="alcoholic" type="string"/>
+  <field name="nonalcoholic" type="string"/>
+  <mix name="Mix">
+    <folder name="Client">
+      <solicit name="GetBeer" service="Sequencer" fields="BEER">
+        <response name="Alcoholic" fields="alcoholic"/>
+        <response name="NonAlcoholic" fields="nonalcoholic"/>
+      </solicit>
+    </folder>
+    <folder name="Server">
+      <request name="DoYouDrive" service="Bartender" fields="BEER">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+put("nonalcoholic", "Foster's Low-Alcohol"),
+put("alcoholic", "Guinness"),
+
+case rand:uniform() > 0.5 of
+  true ->
+    "No";
+
+  false ->
+    "Yes"
+end.
+        ]]></prop>
+        <reply name="Yes" fields="nonalcoholic"/>
+        <reply name="No" fields="alcoholic"/>
+      </request>
+    </folder>
+  </mix>
+</folder>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- 
+Copyright (c) 2018 SPARKL Limited. All Rights Reserved.
+Author <miklos@sparkl.com> Miklos Duma.
+
+Main page of TinyTable demo.
+-->
+  <head>
+    <meta 
+      charset="UTF-8">
+    <link 
+      rel="stylesheet" 
+      href="tiny.css">
+    <title>TinyTable example</title>
+  </head>
+
+  <body>
+    <header>
+      <h1>TinyTable</h1>
+    </header>
+
+    <div 
+      name="container" 
+      id="master">
+
+      <div 
+        name="input_div">Name: 
+        <input 
+          type="text" 
+          name="name" 
+          id="name_input">
+        <button 
+          onclick="insertName()" 
+          type="button" 
+          name="submit">Submit
+        </button>
+      </div>
+
+      <table 
+        id="tiny_table">
+      </table>
+
+  </div>
+    
+    <script 
+      type="text/javascript" 
+      src="http://localhost:8000/rest/sparkl.Service.js">
+    </script>
+    <script 
+      type="text/javascript" 
+      src="utils.js">
+    </script>
+    <script 
+      type="text/javascript" 
+      src="sparkl_impl.js">
+    </script>
+    <script 
+      type="text/javascript" 
+      src="table_impl.js">
+    </script>
+  
+  </body>
+</html>

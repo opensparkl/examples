@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="Tutorial5">
+  <service name="Sequencer" provision="sequencer"/>
+  <field name="gin" type="string"/>
+  <field name="tonic" type="string"/>
+  <field name="ORDER"/>
+  <field name="ENOUGH"/>
+  <mix name="Mix">
+    <folder name="Customer">
+      <service name="Bono" provision="expr"/>
+      <notify name="Order" service="Sequencer" clients="Bono" fields="ORDER">
+        <prop name="expr.auto" count="1"/>
+      </notify>
+      <consume name="Drink" service="Bono" fields="gin tonic">
+        <reply name="KeepDrinking" fields="ORDER"/>
+      </consume>
+      <consume name="DrinkSoda" service="Bono" fields="ENOUGH tonic"/>
+    </folder>
+    <folder name="Bartender">
+      <service name="Bartender" provision="expr">
+        <prop name="expr.state" GinsServed="NewGinsServed"/>
+        <prop name="expr.init" GinsServed="0"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+EnoughGin = 4.
+        ]]></prop>
+      </service>
+      <request name="ServeDrink" service="Bartender" fields="ORDER">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+case GinsServed < EnoughGin of
+  true ->
+    NewGinsServed = GinsServed + 1,
+    put("gin", "Gordon's"),
+    put("tonic", "Schweppes"),
+    "Alcoholic";
+
+  false ->
+  put("tonic", "Schweppes"),
+    "NonAlcoholic"
+end.
+        ]]></prop>
+        <reply name="NonAlcoholic" fields="ENOUGH tonic"/>
+        <reply name="Alcoholic" fields="gin tonic"/>
+      </request>
+      <consume name="NextCustomer" service="Bartender" fields="ENOUGH">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewGinsServed = 0.
+        ]]></prop>
+      </consume>
+    </folder>
+  </mix>
+</folder>

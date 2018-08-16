@@ -1,0 +1,48 @@
+<folder name="MonitorVibration">
+  <service name="Expr" provision="expr">
+    <prop name="expr.state" HiCount="NewHiCount"/>
+    <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+TooHigh = 100.
+    ]]></prop>
+    <prop name="expr.init" HiCount="0"/>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <field name="vibration" type="integer"/>
+  <field name="RESET"/>
+  <field name="VIBRATION_ALERT"/>
+  <mix name="Mix">
+    <folder name="Sensor">
+      <service name="SensorReader" provision="expr"/>
+      <notify name="SensorReading" service="Sequencer" clients="SensorReader" fields="vibration"/>
+      <consume name="RecordVibration" service="Expr" fields="vibration">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+case get("vibration") > TooHigh of  
+  true ->    
+    NewHiCount = HiCount + 1;   
+
+  false ->    
+    ok
+end.
+        ]]></prop>
+      </consume>
+    </folder>
+    <folder name="Timeslot">
+      <notify name="Tick" service="Sequencer" clients="Expr" fields="RESET">
+        <prop name="expr.auto" interval="10m"/>
+      </notify>
+      <consume name="Reset" service="Expr" fields="RESET">
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+NewHiCount = 0.
+        ]]></prop>
+      </consume>
+    </folder>
+    <folder name="Alert">
+      <notify name="VibrationAlert" service="Sequencer" clients="Expr" fields="VIBRATION_ALERT">
+        <prop name="expr.state" HiCount="OldHiCount"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+HiCount =:= 3.
+        ]]></prop>
+      </notify>
+    </folder>
+  </mix>
+</folder>
