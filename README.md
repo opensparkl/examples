@@ -1,17 +1,6 @@
-# About SPARKL
-The SPARKL Sequencing Engine is a rules/execution engine written in Erlang. It can manage the behaviour of distributed machines, systems and applications using an XML-based declarative language. 
-
-It is designed to work with legacy and external systems integrating with just about any application, system or language.
-
-SPARKL comes with a CLI and a GUI, where you can build, execute, test and monitor your processes.
-
-# Documentation 
-Documentation for the SPARKL Sequencing Engine can be found online on the [SPARKL docs site](http://docs.sparkl.com/). 
-
-[![Join the chat at https://gitter.im/sparkl/support](https://badges.gitter.im/sparkl/cli.svg)](https://gitter.im/sparkl/support?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
-# Examples & Tutorials <a name="ex_tut"></a>
-## To use an example <a name="use_examples"></a>:
+# OpenSPARKL Examples
+[OpenSPARKL Project Home](http://opensparkl.org)
+# To use an example
 1. Save it to your local file system as an `xml` file.
 > See shortcut [below](#bulk-importing-all-example-configurations) on how to import **all** example configurations in one go.
 2. Open the SPARKL Developer Console
@@ -24,16 +13,16 @@ Documentation for the SPARKL Sequencing Engine can be found online on the [SPARK
 4. Import the `xml` file
 5. Run it in the Developer Console
   
-## To use a tutorial <a name="use_tutorial"></a>:
+# To use a tutorial:
  1. Open the SPARKL Developer Console
  2. Create a new folder
  3. Build the mix in the [Editor](http://docs.sparkl.com/#TopicRoot/Editor/the_editor_c.html) with the help of our video guides
  
- ## Bulk importing all example configurations
+ # Bulk importing all example configurations
  ### Dependencies
  * Python 2.7 - get it from [here](https://www.python.org/downloads/)
  * Git - get it from [here](https://git-scm.com/downloads)
- * The SPARKL CLI - get it from [here](https://github.com/sparkl/cli/releases)
+ * The SPARKL CLI - get it from [here](https://github.com/opensparkl/sse_cli)
  * An existing SPARKL user account
 ### Procedure
 1. Clone the `examples` repository.
