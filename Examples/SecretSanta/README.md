@@ -5,11 +5,11 @@ _In this example we use SPARKL to randomly draw names from a list, and send the 
 You can either:
 * Clone the whole repository from git
 * Save the source code of this particular example by:
-    * Right-clicking [this link](https://raw.githubusercontent.com/sparkl/examples/master/Examples/SecretSanta/SecretSanta.xml)
+    * Right-clicking [this link](https://raw.githubusercontent.com/opensparkl/examples/master/Examples/SecretSanta/SecretSanta.xml)
     * Clicking **Save Link As...**
 
 ### 2. Running the mix
-_If the example is not in your configuration tree yet, you need to import it into the Developer Console. See [how](https://github.com/sparkl/examples#use_examples)._
+_If the example is not in your configuration tree yet, you need to import it into the Developer Console. See [how](https://github.com/opensparkl/examples#use_examples)._
 
 1. Create Slack custom integrations (incoming webhooks) to be able to send messages to the private channel of the participants.
    > See [Slack API documentation](https://api.slack.com/).
@@ -21,8 +21,3 @@ _If the example is not in your configuration tree yet, you need to import it int
 5. Click **Test**.
 
 ![secret_santa_mix](https://cloud.githubusercontent.com/assets/17043451/25705721/2ca3662a-30d6-11e7-9a4a-0e3594622c65.png)
-
-
-### 3. So how does it work?
-Read an [explanation](http://docs.sparkl.com/#TopicRoot/Examples/expr_examples/secret_santa_example_c.html) of the mix.
-
