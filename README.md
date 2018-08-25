@@ -12,11 +12,6 @@
      4. Try not to forget it
 4. Import the `xml` file
 5. Run it in the Developer Console
-  
-# To use a tutorial:
- 1. Open the SPARKL Developer Console
- 2. Create a new folder
- 3. Build the mix in the [Editor](http://docs.sparkl.com/#TopicRoot/Editor/the_editor_c.html) with the help of our video guides
  
  # Bulk importing all example configurations
  ### Dependencies
@@ -27,7 +22,7 @@
 ### Procedure
 1. Clone the `examples` repository.
   ```
-  $ git clone https://github.com/sparkl/examples.git
+  $ git clone https://github.com/opensparkl/examples.git
   ```
 2. From the `python_scripts` directory run the `bulk_import.py` script.
   ```
@@ -45,4 +40,4 @@
   Import all examples? y/n y
   ```
 All the selected SPARKL example configurations are imported to your user tree at the specified SPARKL instance. The script also creates the `Scratch` and `Lib` folders in your SPARKL user tree if they are not already there.
-> See [this readme](https://github.com/sparkl/examples/tree/master/Library) on the library configurations saved under the `Lib` folder.
+> See [this readme](https://github.com/opensparkl/examples/tree/master/Library) on the library configurations saved under the `Lib` folder.

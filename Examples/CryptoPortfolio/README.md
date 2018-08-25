@@ -2,17 +2,17 @@
 _In this example we use SPARKL to get the latest price of Bitcoin and a set of other cryptocurrencies._
 
 ## Prerequisites
-* The SPARKL CLI - [get it](https://github.com/sparkl/cli)
+* The SPARKL CLI - [get it](https://github.com/opensparkl/sse_cli)
 
 ## Getting the code
 1. Save the source code of the example by:
-    * Right-clicking [this link](https://raw.githubusercontent.com/sparkl/examples/master/Examples/CryptoPortfolio/CryptoPortfolio.xml)
+    * Right-clicking [this link](https://raw.githubusercontent.com/opensparkl/examples/master/Examples/CryptoPortfolio/CryptoPortfolio.xml)
     * Clicking **Save Link As...**
 2. Save the source code of the Bitcoin library by: 
-   * Right-clicking [this link](https://raw.githubusercontent.com/sparkl/examples/master/Library/lib_bitcoin/lib_bitcoin.xml)
+   * Right-clicking [this link](https://raw.githubusercontent.com/opensparkl/examples/master/Library/lib_bitcoin/lib_bitcoin.xml)
    * Clicking **Save Link As...**
 3. Import both into your SPARKL user account.
-    > See [link](https://github.com/sparkl/examples#use_examples) for further details.
+    > See [link](https://github.com/opensparkl/examples#use_examples) for further details.
 
 ## Getting the event logs
 1. Use the SPARKL CLI to connect to your user account.
@@ -25,7 +25,7 @@ _In this example we use SPARKL to get the latest price of Bitcoin and a set of o
     ```
     $ sparkl listen
     ```
-    > See the [SPARKL CLI wiki](https://github.com/sparkl/cli/wiki/Analysing-SPARKL-event-logs) for further details on reading and filtering SPARKL event logs.
+    > See the [SPARKL CLI wiki](https://github.com/opensparkl/sse_cli/wiki/Analysing-SPARKL-event-logs) for further details on reading and filtering SPARKL event logs.
 
 ## Running the mix
 

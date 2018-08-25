@@ -7,11 +7,11 @@ The junction and the button are both represented as stateful svc_expr services._
 You can either:
 * Clone the whole repository from git
 * Save the source code of this particular example by:
-    * Right-clicking [this link](https://raw.githubusercontent.com/sparkl/examples/master/Examples/TrafficSubr/Traf_Lig_Subr.xml)
+    * Right-clicking [this link](https://raw.githubusercontent.com/opensparkl/examples/master/Examples/TrafficSubr/Traf_Lig_Subr.xml)
     * Clicking **Save Link As...**
 
 ### 2. Running the mix
-_If the example is not in your configuration tree yet, you need to import it into the Developer Console. See [how](https://github.com/sparkl/examples#use_examples)._
+_If the example is not in your configuration tree yet, you need to import it into the Developer Console. See [how](https://github.com/opensparkl/examples#use_examples)._
 
 #### 2.1 Installing the traffic lights
 _The junction with the traffic and pedestrian lights is represented as the `Junction` service._
@@ -32,6 +32,3 @@ When you click the operation, it updates the state of the `Button` service indic
 In the next 15-seconds window when the `Start` notify fires, it updates the lights to allow for pedestrian crossing.
 
 ![traf_subr_mix](https://cloud.githubusercontent.com/assets/17043451/25705933/dd1bd910-30d6-11e7-91cd-bbbdb003de3c.png)
-
-### 3. So how does it work?
-Read an [explanation](http://docs.sparkl.com/#TopicRoot/Examples/mixed_examples/traffic_lights_subroutines_examples_c.html) of the mix.

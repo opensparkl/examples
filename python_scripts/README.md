@@ -1,7 +1,7 @@
 # Example Python scripts with SPARKL commands
 To use any of the scripts, you need the following:
 * Python 2.7 - get it from [here](https://www.python.org/downloads/)
-* The SPARKL CLI - get it from [here](https://github.com/sparkl/cli)
+* The SPARKL CLI - get it from [here](https://github.com/opensparkl/sse_cli)
 
 ## Available scripts
 * `login_and_logout.py` - Use it to connect and log into a SPARKL instance or to log out and close a connection.

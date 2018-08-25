@@ -1,8 +1,8 @@
 # Sample Logging Framework for SPARKL
 
 ## Dependencies
-* The [SPARKL CLI](https://github.com/sparkl/cli)
-* The [PrimesExpr](https://github.com/sparkl/examples/tree/master/Examples/PrimesExpr) mix imported into the `demo@sparkl.com` user's library
+* The [SPARKL CLI](https://github.com/opensparkl/sse_cli)
+* The [PrimesExpr](../../Examples/PrimesExpr) mix imported into the `demo@sparkl.com` user's library
 
 ## Usage
 1. Start the logging framework.

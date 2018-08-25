@@ -2,7 +2,7 @@
 The `tests` folder comes with a fully-operational test framework using the `pytest` Python library and the SPARKL CLI tool. Run existing tests or write your own tests based on the ones already written.
 
 ## Dependencies
-* The SPARKL command-line tool - get it from [here](https://github.com/sparkl/cli)
+* The SPARKL command-line tool - get it from [here](https://github.com/opensparkl/sse_cli)
 * The `pytest` Python library - `pip[3] install pytest`
 * A `json` test settings file.
 

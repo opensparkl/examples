@@ -5,16 +5,16 @@ _This example manipulates and querries an external database of discounts and sen
 You can either:
 * Clone the whole repository from git
 * Save the source code of this particular example by:
-    * Right-clicking [this link](https://raw.githubusercontent.com/sparkl/examples/master/Examples/Discounts/DiscountsCalendar.xml)
+    * Right-clicking [this link](https://raw.githubusercontent.com/opensparkl/examples/master/Examples/Discounts/DiscountsCalendar.xml)
     * Clicking **Save Link As...**
 
 ## 2. Running the mix
-_If the example is not in your configuration tree yet, you need to import it into the Developer Console. See [how](https://github.com/sparkl/examples#use_examples)._
+_If the example is not in your configuration tree yet, you need to import it into the Developer Console. See [how](https://github.com/opensparkl/examples#use_examples)._
 
 ![discounts_calendar](https://cloud.githubusercontent.com/assets/17043451/26110306/db806d6a-3a49-11e7-95e6-25b1f4afa698.png)
 
 ### 2.0 Pre-requisites
-* Import the [Slack library](https://github.com/sparkl/examples/tree/master/Library/lib_slack) into your configuration tree
+* Import the [Slack library](https://github.com/opensparkl/examples/tree/master/Library/lib_slack) into your configuration tree
 * Create a Slack custom integration (incoming webhook) to send messages to a Slack channel
    > See [Slack API documentation](https://api.slack.com/)
 * Edit the Slack library configuration by changing the `url` attribute of the `slack` property to match the URL of the incoming webhook 
