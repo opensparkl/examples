@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<folder name="FileSync"><service name="Sequencer" provision="sequencer"/><service name="Master" provision="rest"/><service name="Slave" provision="rest"/><field name="path" type="utf8"/><field name="content" type="binary"/><field name="CHANGE"/><mix name="Mix"><notify name="Notify" service="Sequencer" clients="Master" fields="CHANGE content path"/><consume name="Consume" service="Slave" fields="CHANGE content path"/></mix></folder>
