@@ -1,2 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<folder name="FileSync"><service name="Sequencer" provision="sequencer"/><service name="Master" provision="rest"/><service name="Slave" provision="rest"/><field name="path" type="utf8"/><field name="content" type="binary"/><field name="CHANGE"/><mix name="Mix"><notify name="Notify" service="Sequencer" clients="Master" fields="CHANGE content path"/><consume name="Consume" service="Slave" fields="CHANGE content path"/></mix></folder>
+<?xml-stylesheet type="text/xsl" href="/xsl/render.xml"?>
+<folder name="FileSync">
+  <prop name="About">
+    This mix propagates changes under a master directory to
+    zero or more slave directories. For instructions, check
+    the Readme in the Master and Slave services.
+  </prop>
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="Master" provision="rest">
+    <prop name="Readme">
+In the master directory, type:
+  sparkl service -p $PKG_DIR Master master
+where $PKG_DIR is the directory containing master.py
+    </prop>
+  </service>
+  <service name="Slave" provision="rest">
+    <prop name="Readme">
+In a slave directory, type:
+  sparkl service -p $PKG_DIR Slave slave
+where $PKG_DIR is the directory containing slave.py
+    </prop>
+  </service>
+  <field name="old" type="utf8"/>
+  <field name="path" type="utf8"/>
+  <field name="bytes" type="binary"/>
+  <field name="is_dir" type="boolean"/>
+  <field name="PUT"/>
+  <field name="DELETE"/>
+  <field name="MOVE"/>
+  <mix name="Mix">
+    <folder name="Master">
+      <notify clients="Master" fields="PUT bytes is_dir path" name="Put" service="Sequencer"/>
+      <notify clients="Master" fields="DELETE is_dir path" name="Delete" service="Sequencer"/>
+      <notify clients="Master" fields="MOVE is_dir old path" name="Move" service="Sequencer"/>
+    </folder>
+    <folder name="Slave">
+      <consume fields="PUT bytes is_dir path" name="Put" service="Slave"/>
+      <consume fields="DELETE is_dir path" name="Delete" service="Slave"/>
+      <consume fields="MOVE is_dir old path" name="Move" service="Slave"/>
+    </folder>
+  </mix>
+</folder>
