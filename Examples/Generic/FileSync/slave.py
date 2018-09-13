@@ -13,13 +13,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-Slave service implementation.
+Simple implementation of FileSync/Slave service.
 """
 import os
 from base64 import b64decode
 
 
 def put(event):
+  """
+  (Over)writes a directory or file.
+  """
   is_dir = event['data']['is_dir']
   path = event['data']['path']
 
@@ -32,18 +35,34 @@ def put(event):
 
 
 def delete(event):
+  """
+  Deletes a directory or file. If the slave is not in sync,
+  this may cause an exception which is caught.
+  """
   is_dir = event['data']['is_dir']
   path = event['data']['path']
-  if is_dir:
-    os.rmdir(path)
-  else:
-    os.remove(path)
+
+  try:
+    if is_dir:
+      os.rmdir(path)
+    else:
+      os.remove(path)
+  except BaseException as exception:
+    print(exception)
 
 
 def move(event):
+  """
+  Moves (renames) a directory or file. If the slave is not in sync,
+  this may cause an exception which is caught.
+  """
   old = event['data']['old']
   path = event['data']['path']
-  os.replace(old, path)
+
+  try:
+    os.replace(old, path)
+  except BaseException as exception:
+    print(exception)
 
 
 def onopen(service):
