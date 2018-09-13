@@ -24,9 +24,9 @@ import json
 import pytest
 
 from sparkl_cli.main import sparkl
-from tests.write_test_log_html import start_test_log, write_log
+from tests.write_test_log_html import start_test_log, write_log, stop_test_log
 
-LOG_FILE = 'tests/log.txt'
+LOG_FILE = 'tests/log.html'
 
 # Random generated alias used for SPARKL connection.
 ALIAS = uuid.uuid4().hex
@@ -422,8 +422,7 @@ def base_setup():
     sparkl('close', alias=ALIAS)
 
     # Close log file and writer co-routine.
-    log_writer.close()
-    log_handle.close()
+    stop_test_log(log_writer, log_handle)
 
 
 @pytest.fixture(scope='module')

@@ -20,6 +20,11 @@ import time
 import json
 
 
+CSS_LINK = '<link rel=\"stylesheet\" type=\"text/css\" href=\"test_log.css\">'
+JS_LINK = '<script src=\"collapse.js\"></script>'
+COLLAPSE_BUTTON = '<button onclick=\"click_me(this)\">&#x25B2;</button>'
+
+
 def writer(log_file_handle):
     """
     A co-routine that writes what it receives to a file.
@@ -41,7 +46,7 @@ def start_test_log(path_to_log):
     Returns the co-routine instance and a handle to
     the opened file.
     """
-    # Wipe content of file.
+    # Create/wipe content of file.
     open(path_to_log, 'w').close()
 
     # Open file in append mode.
@@ -51,28 +56,39 @@ def start_test_log(path_to_log):
     # Get current system time.
     current_time = time.asctime(time.localtime(time.time()))
 
-    # Create co-routine and kick it off.
+    # Create and start co-routine.
     log_writer = writer(log_handle)
     log_writer.send(None)
 
-    # Send the co-routine the date with a header to write to file.
-    log_writer.send('<h1>Tests started at:' + '\n' + current_time + '</h1>')
+    # Add doc-type declaration, link CSS and JavaScript.
+    log_writer.send('<!DOCTYPE html><html><head>{}{}</head><body>'.format(
+        CSS_LINK, JS_LINK))
+
+    # Add title with current date.
+    log_writer.send('<h1>Tests started at: {}</h1>'.format(current_time))
 
     # Return the co-routine and the file handle.
     return log_writer, log_handle
 
 
-def get_separator(indent):
+def stop_test_log(log_writer, log_handle):
     """
-    Returns a string separator with the
-    specified number of spaces.
+    Closes the test log file and stops the writer
+    co-routine.
+        - log_writer:
+            The log writer co-routine.
+        - log_handle:
+            A handle to the test log file.
     """
-    sep = ''
 
-    for _i in range(0, indent):
-        sep += ' '
+    # Close outer HTML tags.
+    log_writer.send('</body></html>')
 
-    return sep
+    # Stop co-routine.
+    log_writer.close()
+
+    # Close log file.
+    log_handle.close()
 
 
 def format_value(value):
@@ -98,18 +114,92 @@ def format_value(value):
         return value
 
 
-def write_html(event, log_writer, event_no=None, level=0):
+def get_margin(element, level):
+    """
+    Calculates right margin of element based on its level.
+    I.e., embedded divs gradually shift to the right.
+    """
     if level:
         style = ' style=\"margin-left:{}em;\"'.format(level * 1.5)
 
     else:
         style = ''
 
+    return '<{}{}>'.format(element, style)
+
+
+def write_event_header(log_writer, event_no, event):
+    """
+    Writes a header for the event. The header comprises:
+        - event_no:
+            The serial number of the event.
+        - event['tag']:
+            The type of the event.
+    """
+    header = '<h3>{}. {}</h3>'.format(str(event_no), event['tag'])
+    log_writer.send(header)
+
+
+def html_wrapper(writer_fun):
+    def wrapper(log_writer, *args, **kwargs):
+
+        log_writer.send(kwargs.get('start_tag', '<div>'))
+        try:
+            writer_fun(log_writer, *args, **kwargs)
+
+        finally:
+            log_writer.send(kwargs.get('end_tag', '</div>'))
+
+    return wrapper
+
+
+def write_test_header(log_writer, test_name):
+    """
+    Writes a test-level header once per test case.
+    """
+    log_writer.send('<h2>Events received during {}</h2>'.format(test_name))
+
+
+@html_wrapper
+def write_list_content(log_writer, list_value, level, **kwargs):
+    start_tag = get_margin('div', level)
+    start_div = get_margin('div', level)
+    log_writer.send(start_div)
+
+    for item in list_value:
+        write_html(item, log_writer, level=level + 1)
+
+
+@html_wrapper
+def write_dict_content(log_writer, dict_value, level, **kwargs):
+    write_html(dict_value, log_writer, level=level + 1)
+
+
+@html_wrapper
+def write_string_content(log_writer, key, value):
+    log_writer.send(key + ': ' + str(value))
+
+
+def write_html(event, log_writer, event_no=None, level=0):
+    """
+    Recursively writes an event to the HTML log file.
+        - event:
+            The SPARKL event it writes to the log file.
+        - log_writer:
+            A co-routine that writes to the log file.
+        - event_no:
+            The serial number of the event. Only given on the
+            first call of the function. It is used for writing
+            a header with the event type and the serial number.
+        - level:
+            The left margin, increased on successive calls.
+    """
+    start_div = get_margin('div', level)
     try:
-        log_writer.send('<div{}>'.format(style))
+        log_writer.send(start_div)
 
         if event_no:
-            log_writer.send('<h3>' + str(event_no) + '. ' + event['tag'] + '</h3>')
+            write_event_header(log_writer, event_no, event)
             event_keys = [key for key in event.keys() if key != 'tag']
 
         else:
@@ -125,85 +215,27 @@ def write_html(event, log_writer, event_no=None, level=0):
             # function on all elements of the list with
             # increased indentation.
             if isinstance(value, list):
-                log_writer.send('<div>')
-                log_writer.send(key + '<button onclick=\"click_me(this)\">&#x25B2;</button>')
-                for item in value:
-                    write_html(item, log_writer, level=level + 1)
-                log_writer.send('</div>')
+                start_tag = '<div>' + key + COLLAPSE_BUTTON
+                end_tag = '</div>'
+                write_list_content(log_writer, value, level,
+                                   start_tag=start_tag,
+                                   end_tag=end_tag)
 
             # If the value is a dictionary, split it using
             # the same function with increased indentation.
             elif isinstance(value, dict):
-                log_writer.send('<div>')
-                log_writer.send(key + '<button onclick=\"click_me(this)\">&#x25B2;</button>')
-                write_html(value, log_writer, level=level + 1)
-                log_writer.send('</div>')
+                start_tag = '<div>' + key + COLLAPSE_BUTTON
+                end_tag = '</div>'
+                write_dict_content(log_writer, value, level,
+                                   start_tag=start_tag,
+                                   end_tag=end_tag)
 
             # Format simple values as string and send them.
             else:
-                log_writer.send('<div>' + key + ': ' + str(value) + '</div>')
+                write_string_content(log_writer, key, value)
 
     finally:
         log_writer.send('</div>')
-
-
-def write_event(event, log_writer, indent=0, event_no=None):
-    """
-    A recursive function that splits an event into
-    small write-able chunks sending each to the writer co-routine.
-        - event:
-            The received event to be written to file.
-        - writer:
-            A co-routine that writes everything it receives
-            to the test log file.
-        - indent:
-            An integer. It specifies the indentation for a line.
-            An indent of 0 means no space, an indent of 4 means
-            4 spaces. Increment it on each successive call of the
-            function.
-        - event_no:
-            The number of the event. Each test sequence comprises
-            one or more events. It is used to give the event a header
-            with its serial number. Only use it on the first call of
-            the function, not when it is called recursively.
-    """
-    # Get indentation based on value of indent keyword.
-    key_indent = get_separator(indent)
-
-    # event_no should only be given on first invocation of the function.
-    # In this case use the event tag as a header for the event with the
-    # serial number of the event.
-    if event_no:
-        log_writer.send('#' + str(event_no) + '. ' + event['tag'] + '\n')
-        event_keys = [key for key in event.keys() if key != 'tag']
-
-    else:
-        event_keys = event.keys()
-
-    # Iterate through all keys.
-    for key in event_keys:
-
-        # Write the key to file.
-        log_writer.send('\n' + key_indent + key + ':' + ' ')
-
-        # Get formatted value based on key.
-        value = format_value(event[key])
-
-        # If the value is a list, invoke the same
-        # function on all elements of the list with
-        # increased indentation.
-        if isinstance(value, list):
-            for item in value:
-                write_event(item, log_writer, indent=indent + 4)
-
-        # If the value is a dictionary, split it using
-        # the same function with increased indentation.
-        elif isinstance(value, dict):
-            write_event(value, log_writer, indent=indent + 4)
-
-        # Format simple values as string and send them.
-        else:
-            log_writer.send(str(value))
 
 
 def write_log(event, name, received, log_writer):
@@ -221,14 +253,7 @@ def write_log(event, name, received, log_writer):
     """
     # When the first event is received use the name of the test as a header.
     if received == 1:
-        log_writer.send('<head><link rel=\"stylesheet\" type=\"text/css\" '
-                        'href=\"test_log.css\">'
-                        '<script src=\"collapse.js\"></script></head>')
-
-        log_writer.send('<h2>Events received during {}</h2>'.format(name))
+        write_test_header(log_writer, name)
 
     # Write formatted event to test log.
     write_html(event, log_writer, event_no=received)
-
-    # Place two new lines between each event.
-    log_writer.send('\n\n')
