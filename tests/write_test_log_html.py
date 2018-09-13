@@ -128,6 +128,10 @@ def get_margin(element, level):
     return '<{}{}>'.format(element, style)
 
 
+def insert_button(log_writer, key):
+    log_writer.send(key + COLLAPSE_BUTTON)
+
+
 def write_event_header(log_writer, event_no, event):
     """
     Writes a header for the event. The header comprises:
@@ -161,18 +165,25 @@ def write_test_header(log_writer, test_name):
 
 
 @html_wrapper
-def write_list_content(log_writer, list_value, level, **kwargs):
-    start_tag = get_margin('div', level)
+def write_list_content(log_writer, key, list_value, level, **kwargs):
+    insert_button(log_writer, key)
     start_div = get_margin('div', level)
-    log_writer.send(start_div)
-
     for item in list_value:
-        write_html(item, log_writer, level=level + 1)
+        write_html(log_writer, item,
+                   event_no=kwargs.get('event_no', None),
+                   start_tag=start_div,
+                   level=level)
 
 
 @html_wrapper
-def write_dict_content(log_writer, dict_value, level, **kwargs):
-    write_html(dict_value, log_writer, level=level + 1)
+def write_dict_content(log_writer, key, dict_value, level, **kwargs):
+    insert_button(log_writer, key)
+
+    start_div = get_margin('div', level)
+    write_html(log_writer, dict_value,
+               event_no=kwargs.get('event_no', None),
+               start_tag=start_div,
+               level=level)
 
 
 @html_wrapper
@@ -180,62 +191,37 @@ def write_string_content(log_writer, key, value):
     log_writer.send(key + ': ' + str(value))
 
 
-def write_html(event, log_writer, event_no=None, level=0):
-    """
-    Recursively writes an event to the HTML log file.
-        - event:
-            The SPARKL event it writes to the log file.
-        - log_writer:
-            A co-routine that writes to the log file.
-        - event_no:
-            The serial number of the event. Only given on the
-            first call of the function. It is used for writing
-            a header with the event type and the serial number.
-        - level:
-            The left margin, increased on successive calls.
-    """
-    start_div = get_margin('div', level)
-    try:
-        log_writer.send(start_div)
+@html_wrapper
+def write_html(log_writer, event, **kwargs):
+    if 'event_no' in kwargs and kwargs['event_no']:
+        write_event_header(log_writer, kwargs['event_no'], event)
+        event_keys = [key for key in event.keys() if key != 'tag']
 
-        if event_no:
-            write_event_header(log_writer, event_no, event)
-            event_keys = [key for key in event.keys() if key != 'tag']
+    else:
+        event_keys = event.keys()
 
+    for key in event_keys:
+        # Write the key to file.
+
+        # Get formatted value based on key.
+        value = format_value(event[key])
+
+        level = kwargs.get('level', 0) + 1
+
+        # If the value is a list, invoke the same
+        # function on all elements of the list with
+        # increased indentation.
+        if isinstance(value, list):
+            write_list_content(log_writer, key, value, level)
+
+        # If the value is a dictionary, split it using
+        # the same function with increased indentation.
+        elif isinstance(value, dict):
+            write_dict_content(log_writer, key, value, level)
+
+        # Format simple values as string and send them.
         else:
-            event_keys = event.keys()
-
-        for key in event_keys:
-            # Write the key to file.
-
-            # Get formatted value based on key.
-            value = format_value(event[key])
-
-            # If the value is a list, invoke the same
-            # function on all elements of the list with
-            # increased indentation.
-            if isinstance(value, list):
-                start_tag = '<div>' + key + COLLAPSE_BUTTON
-                end_tag = '</div>'
-                write_list_content(log_writer, value, level,
-                                   start_tag=start_tag,
-                                   end_tag=end_tag)
-
-            # If the value is a dictionary, split it using
-            # the same function with increased indentation.
-            elif isinstance(value, dict):
-                start_tag = '<div>' + key + COLLAPSE_BUTTON
-                end_tag = '</div>'
-                write_dict_content(log_writer, value, level,
-                                   start_tag=start_tag,
-                                   end_tag=end_tag)
-
-            # Format simple values as string and send them.
-            else:
-                write_string_content(log_writer, key, value)
-
-    finally:
-        log_writer.send('</div>')
+            write_string_content(log_writer, key, value)
 
 
 def write_log(event, name, received, log_writer):
@@ -255,5 +241,4 @@ def write_log(event, name, received, log_writer):
     if received == 1:
         write_test_header(log_writer, name)
 
-    # Write formatted event to test log.
-    write_html(event, log_writer, event_no=received)
+    write_html(log_writer, event, event_no=received)
