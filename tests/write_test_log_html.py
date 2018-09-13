@@ -24,6 +24,16 @@ CSS_LINK = '<link rel=\"stylesheet\" type=\"text/css\" href=\"test_log.css\">'
 JS_LINK = '<script src=\"collapse.js\"></script>'
 COLLAPSE_BUTTON = '<button onclick=\"click_me(this)\">&#x25B2;</button>'
 
+DOC_START_TAG = '<!DOCTYPE html><html><head>{}{}</head><body>'.format(
+    CSS_LINK, JS_LINK)
+
+DOC_STOP_TAG = '</body></html>'
+
+H1_STRING = '<h1>Tests started at: {}</h1>'.format(
+    time.asctime(
+        time.localtime(
+            time.time())))
+
 
 def writer(log_file_handle):
     """
@@ -53,19 +63,15 @@ def start_test_log(path_to_log):
     log_handle = open(path_to_log, 'a')
     print('Create log file: {}'.format(os.path.abspath(path_to_log)))
 
-    # Get current system time.
-    current_time = time.asctime(time.localtime(time.time()))
-
     # Create and start co-routine.
     log_writer = writer(log_handle)
     log_writer.send(None)
 
     # Add doc-type declaration, link CSS and JavaScript.
-    log_writer.send('<!DOCTYPE html><html><head>{}{}</head><body>'.format(
-        CSS_LINK, JS_LINK))
+    log_writer.send(DOC_START_TAG)
 
     # Add title with current date.
-    log_writer.send('<h1>Tests started at: {}</h1>'.format(current_time))
+    log_writer.send(H1_STRING)
 
     # Return the co-routine and the file handle.
     return log_writer, log_handle
@@ -82,7 +88,7 @@ def stop_test_log(log_writer, log_handle):
     """
 
     # Close outer HTML tags.
-    log_writer.send('</body></html>')
+    log_writer.send(DOC_STOP_TAG)
 
     # Stop co-routine.
     log_writer.close()
@@ -128,10 +134,6 @@ def get_margin(element, level):
     return '<{}{}>'.format(element, style)
 
 
-def insert_button(log_writer, key):
-    log_writer.send(key + COLLAPSE_BUTTON)
-
-
 def write_event_header(log_writer, event_no, event):
     """
     Writes a header for the event. The header comprises:
@@ -144,15 +146,23 @@ def write_event_header(log_writer, event_no, event):
     log_writer.send(header)
 
 
-def html_wrapper(writer_fun):
+def html_wrapper(writer_fun, def_start_tag='<div>', def_end_tag='</div>'):
+    """
+    Decorator for HTML writer functions. It wraps the
+    HTML content in start and end tags.
+    """
     def wrapper(log_writer, *args, **kwargs):
-
-        log_writer.send(kwargs.get('start_tag', '<div>'))
+        """
+        Calls the original function with its arguments, places
+        the start tag before the function is called and closes
+        the HTML with the end tag.
+        """
+        log_writer.send(kwargs.get('start_tag', def_start_tag))
         try:
             writer_fun(log_writer, *args, **kwargs)
 
         finally:
-            log_writer.send(kwargs.get('end_tag', '</div>'))
+            log_writer.send(kwargs.get('end_tag', def_end_tag))
 
     return wrapper
 
@@ -166,8 +176,29 @@ def write_test_header(log_writer, test_name):
 
 @html_wrapper
 def write_list_content(log_writer, key, list_value, level, **kwargs):
-    insert_button(log_writer, key)
+    """
+    Writes list content to HTML. For example, the fields content of an event.
+    The html_wrapper decorator puts a start and end tag
+    (possibly specified in kwargs) around the content written by this function.
+
+        - log_writer:
+            The co-routine that writes the test log.
+        - key:
+            An event key, such as 'attr' or 'value'.
+        - list_value:
+            A list, the value that corresponds to 'key'.
+        - level:
+            The level of the div children used in calculating the
+            right margin.
+    """
+    # Write key inside the div as it is and insert a collapsible button.
+    log_writer.send(key + COLLAPSE_BUTTON)
+    level += 1
+
+    # Calculate the margin for the list elements.
     start_div = get_margin('div', level)
+
+    # Call recursive function on each list element.
     for item in list_value:
         write_html(log_writer, item,
                    event_no=kwargs.get('event_no', None),
@@ -177,7 +208,23 @@ def write_list_content(log_writer, key, list_value, level, **kwargs):
 
 @html_wrapper
 def write_dict_content(log_writer, key, dict_value, level, **kwargs):
-    insert_button(log_writer, key)
+    """
+    Writes dict content to HTML. For example, the attributes of an event.
+    The html_wrapper decorator puts a start and end tag
+    (possibly specified in kwargs) around the content written by this function.
+
+        - log_writer:
+            The co-routine that writes the test log.
+        - key:
+            An event key, such as 'attr' or 'value'.
+        - dict_value:
+            A dict, the value that corresponds to 'key'.
+        - level:
+            The level of the div children used in calculating the
+            right margin.
+        """
+    log_writer.send(key + COLLAPSE_BUTTON)
+    level += 1
 
     start_div = get_margin('div', level)
     write_html(log_writer, dict_value,
@@ -188,38 +235,44 @@ def write_dict_content(log_writer, key, dict_value, level, **kwargs):
 
 @html_wrapper
 def write_string_content(log_writer, key, value):
+    """
+    Writes a single string content wrapped in div tags.
+    """
     log_writer.send(key + ': ' + str(value))
 
 
 @html_wrapper
 def write_html(log_writer, event, **kwargs):
+    """
+    A recursive function that writes the SPARKL event to
+    the test log HTML file.
+    """
+
+    # Each event gets a header with event's serial number and type.
+    # Only write a header for the first call of this recursive function.
     if 'event_no' in kwargs and kwargs['event_no']:
         write_event_header(log_writer, kwargs['event_no'], event)
+
+        # Do not write the event type twice (filter tag key).
         event_keys = [key for key in event.keys() if key != 'tag']
 
     else:
         event_keys = event.keys()
 
     for key in event_keys:
-        # Write the key to file.
 
         # Get formatted value based on key.
         value = format_value(event[key])
 
-        level = kwargs.get('level', 0) + 1
+        # Get indentation level.
+        level = kwargs.get('level', 0)
 
-        # If the value is a list, invoke the same
-        # function on all elements of the list with
-        # increased indentation.
         if isinstance(value, list):
             write_list_content(log_writer, key, value, level)
 
-        # If the value is a dictionary, split it using
-        # the same function with increased indentation.
         elif isinstance(value, dict):
             write_dict_content(log_writer, key, value, level)
 
-        # Format simple values as string and send them.
         else:
             write_string_content(log_writer, key, value)
 
