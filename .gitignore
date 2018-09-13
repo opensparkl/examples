@@ -1,6 +1,7 @@
 # Test log stuff
 *.html
 log.txt
+.pytest_cache
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
