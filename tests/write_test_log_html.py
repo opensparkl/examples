@@ -19,9 +19,15 @@ import os
 import time
 import json
 
+TEST_RESOURCES = 'tests/test_resources'
+TEST_LOG = os.path.join(TEST_RESOURCES, 'log.html')
+CSS_FILE = 'test_log.css'
+JS_FILE = 'collapse.js'
 
-CSS_LINK = '<link rel=\"stylesheet\" type=\"text/css\" href=\"test_log.css\">'
-JS_LINK = '<script src=\"collapse.js\"></script>'
+CSS_LINK = '<link rel=\"stylesheet\" type=\"text/css\" href=\"{}\">'.format(
+    CSS_FILE)
+JS_LINK = '<script src=\"{}\"></script>'.format(
+    JS_FILE)
 COLLAPSE_BUTTON = '<button onclick=\"click_me(this)\">&#x25B2;</button>'
 
 DOC_START_TAG = '<!DOCTYPE html><html><head>{}{}</head><body>'.format(
@@ -47,7 +53,7 @@ def writer(log_file_handle):
         log_file_handle.write(to_write)
 
 
-def start_test_log(path_to_log):
+def start_test_log():
     """
     Creates the specified file or wipes its content if
     it already exists.
@@ -57,11 +63,11 @@ def start_test_log(path_to_log):
     the opened file.
     """
     # Create/wipe content of file.
-    open(path_to_log, 'w').close()
+    open(TEST_LOG, 'w').close()
 
     # Open file in append mode.
-    log_handle = open(path_to_log, 'a')
-    print('Create log file: {}'.format(os.path.abspath(path_to_log)))
+    log_handle = open(TEST_LOG, 'a')
+    print('Create log file: {}'.format(os.path.abspath(TEST_LOG)))
 
     # Create and start co-routine.
     log_writer = writer(log_handle)

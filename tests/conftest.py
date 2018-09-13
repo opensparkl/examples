@@ -26,8 +26,6 @@ import pytest
 from sparkl_cli.main import sparkl
 from tests.write_test_log_html import start_test_log, write_log, stop_test_log
 
-LOG_FILE = 'tests/log.html'
-
 # Random generated alias used for SPARKL connection.
 ALIAS = uuid.uuid4().hex
 
@@ -411,7 +409,7 @@ def base_setup():
     sparkl('mkdir', IMPORT_DIR, alias=ALIAS)
 
     # Start test log writer.
-    log_writer, log_handle = start_test_log(LOG_FILE)
+    log_writer, log_handle = start_test_log()
 
     # Each test can access it.
     yield log_writer
