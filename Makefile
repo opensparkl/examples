@@ -1,7 +1,7 @@
 # Copyright (c) 2017 SPARKL Limited. All Rights Reserved.
 # Author <miklos@sparkl.com> Miklos Duma
 
-PYTHON_VERSION ?= 2
+PYTHON_VERSION ?= 3
 CFG_PATH ?= Mandatory
 
 ifeq ($(PYTHON_VERSION), 2)
