@@ -1,7 +1,20 @@
-function click_me(button){
-	var klass = button.getAttribute('class')
+// up arrow
+var HIDE_ARROW = '&#x25B2;'
+// down arrow
+var RESET_ARROW = '&#x25BC;'
 
-	if (klass == 'pressed'){
+
+function get_div_parent(element){
+	var parent = element.parentNode
+	while (parent.tagName != 'DIV'){
+		parent = parent.parentNode
+	}
+	return parent
+}
+
+
+function click_me(button){
+	if (button.closed){
 		reset(button)
 	}
 
@@ -11,24 +24,25 @@ function click_me(button){
 }
 
 
-function hide(button){
-	var div = button.parentNode
-	var div_children = div.getElementsByTagName('div')
-	button.to_reset = []
+function change_display(element, child_tag, new_style){
+	var div = get_div_parent(element)
+	var children = div.getElementsByTagName(child_tag)
 
-	for (i=0; i < div_children.length; i ++){
-		div_children[i].style.display = 'none'
-		button.to_reset.push(div_children[i])
+	for (i=0; i < children.length; i ++){
+		children[i].style.display = new_style
 	}
-	button.setAttribute('class', 'pressed')
-	button.innerHTML = '&#x25BC;'
 }
 
+
+function hide(button){
+	change_display(button, 'div', 'none')
+	button.innerHTML = RESET_ARROW
+	button.closed = true
+}
+
+
 function reset(button){
-	for (i=0; i < button.to_reset.length; i ++){
-		button.to_reset[i].style.display = 'block'
-	}
-	button.removeAttribute('class')
-	button.to_reset = []
-	button.innerHTML = '&#x25B2;'
+	change_display(button, 'div', 'block')
+	button.innerHTML = HIDE_ARROW
+	button.closed = false
 }

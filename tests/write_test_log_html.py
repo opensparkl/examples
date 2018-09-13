@@ -148,7 +148,7 @@ def write_event_header(log_writer, event_no, event):
         - event['tag']:
             The type of the event.
     """
-    header = '<h3>{}. {}</h3>'.format(str(event_no), event['tag'])
+    header = '<h3>{}. {}{}</h3>'.format(str(event_no), event['tag'], COLLAPSE_BUTTON)
     log_writer.send(header)
 
 
