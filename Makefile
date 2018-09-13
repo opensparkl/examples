@@ -32,6 +32,7 @@ lint: pep8
 .PHONY: test
 test: test_basic test_auth
 
+
 .PHONY: test_basic
 test_basic: pytest $(CFG_PATH)
 	@echo Running basic tests.
@@ -47,10 +48,10 @@ $(CFG_PATH):
 
 .PHONY: pep8
 pep8:
-	@$(PIP) list --format=legacy | grep $(PEP)
+	@$(PIP) list --format=columns | grep $(PEP)
 
 
 .PHONY: pytest
 pytest:
-	@$(PIP) list --format=legacy | grep pytest
+	@$(PIP) list --format=columns | grep pytest
 
