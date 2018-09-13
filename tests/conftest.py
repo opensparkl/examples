@@ -24,7 +24,7 @@ import json
 import pytest
 
 from sparkl_cli.main import sparkl
-from tests.write_test_log import start_test_log, write_log
+from tests.write_test_log_html import start_test_log, write_log
 
 LOG_FILE = 'tests/log.txt'
 
