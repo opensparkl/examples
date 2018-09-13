@@ -56,12 +56,13 @@ SendMessage =
     <field name="heading" type="utf8"/>
     <field name="map" type="json"/>
     <field name="url" type="string"/>
-    <notify name="SendMessage" service="Sequencer" clients="Export" fields="colour heading map">
+    <field name="NO_URL"/>
+    <notify name="SendMessage" service="Sequencer" clients="Export" fields="colour heading map NO_URL">
     </notify>
     <notify name="SendMessageUrl" service="Sequencer" clients="Export" fields="colour heading map url">
     </notify>
     <folder name="Impl">
-      <consume name="SendMessage" service="Slack" fields="colour heading map">
+      <consume name="SendMessage" service="Slack" fields="colour heading map NO_URL">
         <prop name="expr.src" type="text/x-erlang"><![CDATA[
 Colour = get("colour"), 
 Heading= get("heading"), 
@@ -89,57 +90,6 @@ SendMessage(
   Message, Url).
         ]]></prop>
       </consume>
-    </folder>
-    <folder name="Test">
-      <field name="test_colour" type="utf8"/>
-      <field name="test_heading" type="utf8"/>
-      <field name="test_map" type="json"/>
-      <field name="test_url" type="string"/>
-      <field name="test_message" type="json"/>
-      <field name="SUCCESS"/>
-      <field name="FAIL"/>
-      <solicit name="Start" service="Sequencer" fields="test_colour test_heading test_map test_url">
-        <response name="Ok" fields="SUCCESS test_message"/>
-        <response name="Error" fields="FAIL"/>
-      </solicit>
-      <request name="BuildMessage" service="Slack" fields="test_colour test_heading test_map">
-        <reply name="Ok" fields="test_message"/>
-        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
-Colour = get("test_colour"), 
-Heading = get("test_heading"),
-Map = get("test_map"),
-
-Message =
-  BuildMessage(
-    Colour, Heading, Map),
-
-put("test_message", Message),
- "Ok".]]></prop>
-      </request>
-      <request name="SendToSlack" service="Slack" fields="test_message test_url">
-        <reply name="Ok" fields="SUCCESS"/>
-        <reply name="Error" fields="FAIL"/>
-        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
-Url = get("test_url"), 
-Message = get("test_message"),
-
-{ok, 
-	{
-		{_, Status, _},
-		Headers,
-		Response
-	}
-} = SendMessage(
-  Message, Url),
-  
-case Status of
-  200 ->
-    "Ok";
-  _Otherwise ->
-    "Error"
- end.
-]]></prop>
-      </request>
     </folder>
   </mix>
 </folder>
