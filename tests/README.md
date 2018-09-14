@@ -14,7 +14,7 @@ All tests rely on a settings file. As a minimum, the settings must specify:
  
 Based on the required settings, the tests are divided into two folders:
 * `no_auth` - These tests only need the minimum settings
-* `with_auth` - These tests need additional settings, such as an existing slack channel webhook.
+* `with_auth` - These tests need additional settings, such as an existing slack channel webhook
 ```json
 {
 	  "sse_url": "http://localhost:8000",
@@ -34,9 +34,9 @@ Based on the required settings, the tests are divided into two folders:
    ```
    $ export CFG_PATH=~/my_projects/my_credentials/sparkl_settings.json 
    ```
-2. (**Optional**) Use the `PYTHON_VERSION` variable to set the Python execution environment. By default, all `make` targets use Python2.
+2. (**Optional**) Use the `PYTHON_VERSION` variable to set the Python execution environment. By default, all `make` targets use Python3.
    ```
-   $ export PYTHON_VERSION=3
+   $ export PYTHON_VERSION=2
    ```
 3. Use the `make` targets to run either all tests or just specific ones.
    ```
