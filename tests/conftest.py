@@ -1,10 +1,21 @@
 """
-Copyright (c) 2018 SPARKL Limited. All Rights Reserved.
-Author <miklos@sparkl.com> Miklos Duma.
+Author <miklos@sparkl.com> Miklos Duma
+Copyright 2018 SPARKL Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 Test harness for testing SPARKL sample configs in examples repo.
 """
 from multiprocessing import Process, Queue
+from queue import Empty
 
 import time
 import uuid
@@ -13,6 +24,7 @@ import json
 import pytest
 
 from sparkl_cli.main import sparkl
+from tests.write_test_log_html import start_test_log, write_log, stop_test_log
 
 # Random generated alias used for SPARKL connection.
 ALIAS = uuid.uuid4().hex
@@ -30,6 +42,14 @@ EXP_RESPONSE = 'exp_resp'
 OUTPUT_FIELDS = 'output_fields'
 CHECK_FUN = 'check_function'
 STOP_OR_NOT = 'stop_or_not'
+TEST_NAME = 'name'
+MINERS = 'miners'
+MINER_FUN = 'miner_fun'
+MINER_ARGS = 'miner_args'
+MINER_KWARGS = 'miner_kwargs'
+EXP = 'exp'
+MATCHED = 'matched'
+ERROR = 'error'
 
 # Error messages
 FLOAT_ERROR = 'The value of \'{}\' must be a float.'
@@ -146,7 +166,129 @@ def compare_values(exp_val, act_val):
     assert exp_val == act_val, error_message
 
 
-def run_tests(alias, **test_data):
+def match_error_event(event, *_args):
+    """
+    Matches error events.
+    Returns True or False.
+    """
+    return event['tag'] == 'error'
+
+
+def mine_event(event, miners):
+    """
+    Matches the event against the miner's filter
+    function.
+    """
+    for miner in miners:
+        fun = miner[MINER_FUN]
+        args = miner.get(MINER_ARGS, ())
+        kwargs = miner.get(MINER_KWARGS, {})
+
+        if fun(event, *args, **kwargs):
+            miner[MATCHED] = miner[MATCHED] + 1 if MATCHED in miner else 1
+
+    return miners
+
+
+def test_fail_msg(exp, test_name, miner_name, matched=0):
+    """
+    Formats message string for false test assertion.
+        - exp:
+            Expected number of events (to be matched).
+        - test_name:
+            Name of running test.
+        - miner_name:
+            Name of miner function.
+        - matched:
+            Number of events matched with miner function.
+            By default it's 0.
+    """
+    return 'Expected to match {} events, not {} in {} with {}.'.format(
+        exp, matched, test_name, miner_name)
+
+
+def assert_miners(miners, test_name):
+    """
+    Checks whether each miner matched the
+    expected number of events - if any.
+    """
+    for miner in miners:
+
+        # If miner did not match any event, expected must have been zero.
+        if MATCHED not in miner:
+            assert miner[EXP] == 0, test_fail_msg(
+                miner[EXP], test_name, miner[MINER_FUN].__name__)
+
+        else:
+            assert miner[MATCHED] == miner[EXP], test_fail_msg(
+                miner[EXP], test_name, miner[MINER_FUN].__name__,
+                matched=miner[MATCHED])
+
+
+def assert_events(event_queue, log_writer, test_name, miners=None):
+    """
+    Processes SPARKL events received during the test run.
+    The events are placed into a queue by a separate process.
+
+        - event_queue:
+            The tests try to retrieve the events from this queue.
+        - log_writer:
+            A co-routine. It writes events to a log file.
+        - test_name:
+            The name of the running test case.
+        - miners:
+            Optional filter functions. Some of the tests expect specific
+            events to happen. The miners make sure they do.
+    """
+    received = 1
+
+    # Error events should not happen.
+    # Default miner is added to miners in all cases.
+    def_miner = {
+        MINER_FUN: match_error_event,
+        EXP: 0}
+
+    miners = miners + [def_miner] if miners else [def_miner]
+
+    while True:
+        try:
+            event = event_queue.get(timeout=1)
+
+            write_log(event, test_name, received, log_writer)
+            received += 1
+
+            mine_event(event, miners)
+
+        except Empty:
+            break
+
+    assert_miners(miners, test_name)
+
+
+def assert_result(result, **kwargs):
+    """
+    Checks the SPARKL response to the tested operation.
+    """
+    try:
+        formatted_result = format_response_data(result)
+
+        if EXP_RESPONSE in kwargs:
+            compare_response(
+                kwargs[EXP_RESPONSE], formatted_result['response'])
+
+        if OUTPUT_FIELDS in kwargs:
+            for key, exp_value in kwargs[OUTPUT_FIELDS].items():
+                act_value = formatted_result['fields'][key]
+                compare_values(exp_value, act_value)
+
+        if CHECK_FUN in kwargs:
+            kwargs[CHECK_FUN](formatted_result['fields'])
+
+    except KeyError:
+        assert False, 'Unexpected result: {}.'.format(json.dumps(result))
+
+
+def run_tests(alias, event_queue, log_writer, test_data):
     """
     Run once per test.
         - alias:
@@ -167,37 +309,23 @@ def run_tests(alias, **test_data):
                     A flag to indicate all running services must be stopped
                     before the test is run
     """
-    # Collect test data. Only operation name and expected response/reply are
-    # mandatory.
-    operation = test_data[OPERATION]
-    exp_resp = test_data[EXP_RESPONSE]
-
-    # Optional test values are None if not supported.
-    fields = test_data.get(INPUT_FIELDS, None)
-    exp_output_fields = test_data.get(OUTPUT_FIELDS, None)
-    stop_or_not = test_data.get(STOP_OR_NOT, None)
-    check_fun = test_data.get(CHECK_FUN, None)
-
     # Stop all services in test directory if test requires so.
-    if stop_or_not:
+    if STOP_OR_NOT in test_data:
         sparkl('stop', IMPORT_DIR, alias=alias)
 
+    # Set field values if the test specifies input data for the operation.
+    if INPUT_FIELDS in test_data:
+        sparkl('vars', literal=test_data[INPUT_FIELDS], alias=alias)
+
     # Call SPARKL operation and gather results.
-    response, out_fields = get_sparkl_result(operation, alias, fields=fields)
+    result = sparkl('call', test_data[OPERATION], alias=alias)
 
-    # Check response/reply is as expected.
-    compare_response(exp_resp, response)
+    # Check whether the expected events are received.
+    assert_events(event_queue, log_writer, test_data[TEST_NAME],
+                  miners=test_data.get(MINERS, None))
 
-    # If the test specifies expected output fields and values, check them.
-    if exp_output_fields:
-        for key, exp_value in exp_output_fields.items():
-            act_value = out_fields[key]
-            compare_values(exp_value, act_value)
-
-    # If the test specifies an extra function to check the output values,
-    # use that function.
-    if check_fun:
-        check_fun(out_fields)
+    # Check whether the tested operation returned the expected response.
+    assert_result(result, **test_data)
 
 
 def event_to_queue(alias, listen_path, event_queue):
@@ -280,12 +408,19 @@ def base_setup():
     sparkl('login', sse_user, sse_pwd, alias=ALIAS)
     sparkl('mkdir', IMPORT_DIR, alias=ALIAS)
 
-    yield
+    # Start test log writer.
+    log_writer, log_handle = start_test_log()
+
+    # Each test can access it.
+    yield log_writer
 
     # Clean up after all tests have run.
     sparkl('rm', IMPORT_DIR, alias=ALIAS)
     sparkl('logout', alias=ALIAS)
     sparkl('close', alias=ALIAS)
+
+    # Close log file and writer co-routine.
+    stop_test_log(log_writer, log_handle)
 
 
 @pytest.fixture(scope='module')

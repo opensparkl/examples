@@ -253,47 +253,5 @@ NewBitcoin = get("btc_price").
         </consume>
       </folder>
     </folder>
-    <folder name="Test">
-      <field name="TEST"/>
-      <field name="DOUBLE"/>
-      <field name="TEST_DELETE"/>
-      <field name="end_state" type="term"/>
-      <field name="start_state" type="term"/>
-      <solicit name="TestAdd" service="Sequencer" fields="ADD CURRENCY TEST crypto_currency">
-        <response name="Ok" fields="end_state start_state"/>
-      </solicit>
-      <solicit name="TestAddDuplicate" service="Sequencer" fields="ADD CURRENCY DOUBLE TEST crypto_currency">
-        <response name="Error" fields="error"/>
-      </solicit>
-      <solicit name="TestDelete" service="Sequencer" fields="ADD CURRENCY TEST TEST_DELETE crypto_currency">
-        <response name="Ok" fields="DELETE end_state start_state"/>
-      </solicit>
-      <request name="GetStartState" service="Portfolio" fields="TEST">
-        <reply name="Ok" fields="start_state"/>
-        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
-put("start_state", Portfolio),
-"Ok".
-        ]]></prop>
-      </request>
-      <request name="GetEndState" service="Portfolio" fields="DONE start_state">
-        <reply name="Ok" fields="end_state"/>
-        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
-% Transform crypto ticker/ price tuples into list for tests, Python doesn't like Erlang tuples
-EndState = [tuple_to_list(X)||X <- Portfolio],
-put("end_state", EndState),
-"Ok".
-        ]]></prop>
-      </request>
-      <consume name="StartDelete" service="Portfolio" fields="TEST_DELETE crypto_currency end_state">
-        <reply name="Ok" fields="DELETE crypto_currency start_state"/>
-        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
-put("start_state", get("end_state")),
-"Ok".
-        ]]></prop>
-      </consume>
-      <consume name="AddDuplicate" service="Portfolio" fields="DOUBLE crypto_currency end_state start_state">
-        <reply name="Ok" fields="ADD CURRENCY crypto_currency end_state start_state"/>
-      </consume>
-    </folder>
   </mix>
 </folder>

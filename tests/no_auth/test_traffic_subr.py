@@ -1,13 +1,25 @@
 """
-Copyright (c) 2018 SPARKL Limited. All Rights Reserved.
-Author <miklos@sparkl.com> Miklos Duma.
+Author <miklos@sparkl.com> Miklos Duma
+Copyright 2018 SPARKL Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 Test cases for Traffic Lights Subroutines SPARKL mix in examples repo.
 """
 
 import pytest
-from tests.conftest import (IMPORT_DIR, OPERATION, EXP_RESPONSE,
-                            CHECK_FUN, compare_values, run_tests)
+from tests.conftest import IMPORT_DIR, OPERATION, EXP_RESPONSE, TEST_NAME, \
+    MINERS, MINER_FUN, MINER_ARGS, MINER_KWARGS, EXP, run_tests
+
+from tests.filters import match_event_with_field, match_state_change
 
 # Configuration(s) imported by the test setup.
 FILE_PATHS = ['Examples/TrafficSubr/Traf_Lig_Subr.xml']
@@ -15,37 +27,21 @@ FILE_PATHS = ['Examples/TrafficSubr/Traf_Lig_Subr.xml']
 # Path to the tested operation in SPARKL.
 USER_TREE_PATH = '{}/Traf_Lig_Subr'.format(IMPORT_DIR)
 
+# SPARKL resource targeted by the `sparkl listen` command.
+LISTEN_TARGET = USER_TREE_PATH
+
 # Path to tested operations in the user tree.
 GET_MODE_OP = '{}/MasterFolder/MasterMix/Get/GetMode'.format(USER_TREE_PATH)
-TEST_OP = '{}/MasterFolder/MasterMix/MasterTest/' \
-          'StartTest'.format(USER_TREE_PATH)
+
 WAIT_OP = '{}/SubrFolder/SubrMix/SubrGet/' \
           'IsPersonWaiting'.format(USER_TREE_PATH)
+
+SET_PEOPLE = '{}/MasterFolder/MasterMix/Set/SetPeople'.format(USER_TREE_PATH)
 
 # Responses/replies sent by SPARKL.
 OK_RESP = 'Ok'
 TRAFFIC_RESP = 'Traffic'
 NO_RESP = 'No'
-
-
-#####################################################
-# Additional check functions used by the test data. #
-#####################################################
-
-
-def check_traffic_states(output_fields):
-    """
-    Checks service (traffic) states are as expected.
-    """
-    states = output_fields['test_states']
-    traffic_state = states['traffic']
-    expected_traffic_state = 'red'
-    compare_values(expected_traffic_state, traffic_state)
-
-    pedestrian_state = states['pedestrian']
-    expected_ped_state = 'green'
-    compare_values(expected_ped_state, pedestrian_state)
-
 
 ##########################################################################
 # Test data.
@@ -65,36 +61,77 @@ def check_traffic_states(output_fields):
 #    - STOP_OR_NOT (optional):
 #        A flag to indicate all running services must be stopped
 #        before the test is run
+#   - MINERS (optional):
+#       A list of functions that filter and check SPARKL event logs.
 ##########################################################################
-TEST_DATA = [
 
-    # Test operation presses pedestrian button, expected service states are:
-    #   traffic: red
-    #   pedestrian: green
-    {
-        OPERATION: TEST_OP,
-        EXP_RESPONSE: OK_RESP,
-        CHECK_FUN: check_traffic_states},
+TEST_DATA = [
 
     # Test GetMode operation. Expects Traffic reply.
     {
+        TEST_NAME: 'Test_GetMode',
         OPERATION: GET_MODE_OP,
-        EXP_RESPONSE: TRAFFIC_RESP},
+        EXP_RESPONSE: TRAFFIC_RESP,
+
+        # Expects one request event and the reply to it.
+        MINERS: [
+            {MINER_FUN: match_event_with_field,
+             MINER_ARGS: ('request', 'GetMode'),
+             EXP: 1},
+
+            {MINER_FUN: match_event_with_field,
+             MINER_ARGS: ('reply', 'Traffic'),
+             EXP: 1}
+        ]},
+
 
     # Test IsPersonWaiting operation. Expects No reply.
     {
+        TEST_NAME: 'Test_IsPersonWaiting',
         OPERATION: WAIT_OP,
-        EXP_RESPONSE: NO_RESP}
+        EXP_RESPONSE: NO_RESP,
+
+        # Expects one request event and the reply to it.
+        MINERS: [
+            {MINER_FUN: match_event_with_field,
+             MINER_ARGS: ('request', 'IsPersonWaiting'),
+             EXP: 1},
+
+            {MINER_FUN: match_event_with_field,
+             MINER_ARGS: ('reply', 'No'),
+             EXP: 1}
+        ]},
+
+    {
+        TEST_NAME: 'TestSetPeopleMode',
+        OPERATION: SET_PEOPLE,
+        MINERS: [
+            {MINER_FUN: match_event_with_field,
+             MINER_ARGS: ('consume', 'SetPeople'),
+             EXP: 1},
+
+            # Expects the Junction service's state to change.
+            {MINER_FUN: match_state_change,
+             MINER_ARGS: ('Junction',),
+             MINER_KWARGS: {
+                 'exp_new': {
+                     'PedLight': 'green',
+                     'TrafLight': 'red'}},
+             EXP: 1}
+        ]
+    }
 ]
 
 
 @pytest.mark.parametrize('test_data', TEST_DATA)
-def test_traffic_subr(test_data, base_setup, setup_method):
+def test_traffic_subr(test_data, base_setup, setup_method, listener_setup):
     """
     Calls each set of data in TEST_DATA. The function also uses:
         - setup_method:
             A basic setup method that imports the needed configuration(s)
             and yields the SPARKL alias used in the session
     """
+    event_queue = listener_setup
+    log_writer = base_setup
     alias = setup_method
-    run_tests(alias, **test_data)
+    run_tests(alias, event_queue, log_writer, test_data)

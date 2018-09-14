@@ -1,19 +1,32 @@
 """
-Copyright (c) 2018 SPARKL Limited. All Rights Reserved.
-Author <miklos@sparkl.com> Miklos Duma.
+Author <miklos@sparkl.com> Miklos Duma
+Copyright 2018 SPARKL Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 Test cases for Primes expr SPARKL mix in examples repo.
 """
 
 import pytest
-from tests.conftest import (IMPORT_DIR, OPERATION, INPUT_FIELDS, EXP_RESPONSE,
-                            OUTPUT_FIELDS, run_tests)
+from tests.conftest import IMPORT_DIR, OPERATION, INPUT_FIELDS, EXP_RESPONSE, \
+    TEST_NAME, OUTPUT_FIELDS, run_tests
 
 # Configuration(s) imported by the test setup.
 FILE_PATHS = ['Examples/PrimesExpr/Primes_expr.xml']
 
 # Path to the tested operation in SPARKL.
 USER_TREE_PATH = '{}/Primes_expr'.format(IMPORT_DIR)
+
+# SPARKL resource targeted by the `sparkl listen` command.
+LISTEN_TARGET = '{}/Sequencer'.format(USER_TREE_PATH)
 
 # Path to tested operations in the user tree.
 SOLICIT_OP = '{}/Primes_expr/Mix/Frontend/CheckPrime'.format(IMPORT_DIR)
@@ -53,18 +66,21 @@ MAYBE_RESP = 'Maybe'
 TEST_DATA = [
     # Test full transaction with prime number. Expects Yes response.
     {
+        TEST_NAME: 'test_solicit_13',
         OPERATION: SOLICIT_OP,
         INPUT_FIELDS: [(N_FLD, 13)],
         EXP_RESPONSE: YES_RESP},
 
     # Test full transaction with not prime number. Expects No response.
     {
+        TEST_NAME: 'test_solicit_66',
         OPERATION: SOLICIT_OP,
         INPUT_FIELDS: [(N_FLD, 66)],
         EXP_RESPONSE: NO_RESP},
 
     # Test FirstDivisor operation. Expects div field to be 2.
     {
+        TEST_NAME: 'test_first_div',
         OPERATION: FIRST_DIV_OP,
         INPUT_FIELDS: [(N_FLD, 66)],
         EXP_RESPONSE: OK_RESP,
@@ -73,6 +89,7 @@ TEST_DATA = [
 
     # Test the Test request. Expects Maybe reply to request.
     {
+        TEST_NAME: 'test_test_op',
         OPERATION: TEST_OP,
         INPUT_FIELDS: [(N_FLD, 13),
                        (DIV_FLD, 2)],
@@ -81,6 +98,7 @@ TEST_DATA = [
     # Test Iterate consume/reply with first divisor(2).
     # Expects new divisor to be 3.
     {
+        TEST_NAME: 'test_iterate_op_13_2',
         OPERATION: ITERATE_OP,
         INPUT_FIELDS: [(N_FLD, 13),
                        (DIV_FLD, 2)],
@@ -91,6 +109,7 @@ TEST_DATA = [
     # Test Iterate consume/reply with a divisor of 3.
     # Expects new divisor to be 5.
     {
+        TEST_NAME: 'test_iterate_op_39_3',
         OPERATION: ITERATE_OP,
         INPUT_FIELDS: [(N_FLD, 39),
                        (DIV_FLD, 3)],
@@ -101,7 +120,7 @@ TEST_DATA = [
 
 
 @pytest.mark.parametrize('test_data', TEST_DATA)
-def test_primes_expr(test_data, base_setup, setup_method):
+def test_primes_expr(test_data, base_setup, setup_method, listener_setup):
     """
     Calls each set of data in TEST_DATA. The function also uses:
         - setup_method:
@@ -109,4 +128,7 @@ def test_primes_expr(test_data, base_setup, setup_method):
             and yields the SPARKL alias used in the session
     """
     alias = setup_method
-    run_tests(alias, **test_data)
+
+    event_queue = listener_setup
+    log_writer = base_setup
+    run_tests(alias, event_queue, log_writer, test_data)

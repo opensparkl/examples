@@ -43,10 +43,10 @@ def connect_login(alias='default'):
 
     except CliException as error:
         print(error)
-        return ('error', error)
+        return 'error', error
 
     # Return used alias
-    return ('ok', alias)
+    return 'ok', alias
 
 
 def logout_close(alias='default'):
@@ -59,5 +59,3 @@ def logout_close(alias='default'):
 
     sparkl('close', alias=alias)
     print('Connection associated with alias %s is closed' % (alias))
-
-    return
