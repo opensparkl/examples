@@ -96,9 +96,8 @@ EncodeParams =
       <response name="Error" fields="error"/>
     </solicit>
     <folder name="Impl">
-      <field name ="api_json" type="json"/>
       <request name="SetAPIKeys" service="SMS" fields="acc_sid auth_token from">
-        <reply name="Ok" fields="SEND api_json"/>
+        <reply name="Ok" fields="SEND"/>
         <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
 % Set Twilio API keys based on input
 FieldDict = get(),

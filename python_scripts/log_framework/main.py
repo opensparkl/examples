@@ -35,9 +35,9 @@ from sample_filters import (filter_tag, filter_field, filter_name,
 
 # Import queue without upsetting either Py2 or Py3.
 if sys.version_info.major == 3:
-    import queue as queue
+    import queue as queue_mod
 else:
-    import Queue as queue
+    import Queue as queue_mod
 
 # Specify user and alias
 FILTER_ALIAS = 'test_filter'
@@ -118,7 +118,7 @@ def read_queue(event_queue):
         event = event_queue.get(block=False)
         print(event)
 
-    except queue.Empty:
+    except queue_mod.Empty:
         print('No events collected.')
 
 
@@ -152,7 +152,7 @@ def main(user, filters, alias='default'):
     events = result
 
     # Create a queue shared between the main process and the on-event function
-    event_queue = queue.Queue()
+    event_queue = queue_mod.Queue()
 
     # Cleanup function to call when exiting from logging.
     on_exit = (logout,
