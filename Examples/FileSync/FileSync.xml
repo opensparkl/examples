@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?xml-stylesheet type="text/xsl" href="/opensparkl/sse_cli/master/sparkl_cli/resources/render.xsl"?>
+<?xml-stylesheet type="text/xsl" href="/jacobythwaites/sse_cli/windows_support/sparkl_cli/resources/render.xsl"?>
 <folder name="FileSync">
   <prop name="About">
     This mix propagates changes under a master directory to
