@@ -1,6 +1,16 @@
 """
-Copyright (c) 2018 SPARKL Limited. All Rights Reserved.
-Author <miklos@sparkl.com> Miklos Duma.
+Author <miklos@sparkl.com> Miklos Duma
+Copyright 2018 SPARKL Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 Test cases for Lib SMS SPARKL mix in examples repo.
 """
@@ -9,8 +19,11 @@ import pytest
 # IMPORT_DIR is the default folder in the SPARKL user tree
 # your test files are imported to for testing
 # setup method in conftest creates it for the tests and then deletes it
-from tests.conftest import (IMPORT_DIR, OPERATION, INPUT_FIELDS,
-                            EXP_RESPONSE, run_tests, read_from_config)
+from tests.conftest import IMPORT_DIR, OPERATION, INPUT_FIELDS, \
+    EXP_RESPONSE, TEST_NAME, MINERS, MINER_FUN, MINER_ARGS, EXP, \
+    run_tests, read_from_config
+
+from tests.filters import match_state_change
 
 # Environment variables used by test.
 TWILIO_SID = read_from_config('twilio_sid')
@@ -24,6 +37,9 @@ FILE_PATHS = ['Library/lib_sms/sms_lib.xml']
 
 # The path to the root folder of your mix in the SPARKL user tree.
 USER_TREE_PATH = '{}/lib.sms'.format(IMPORT_DIR)
+
+# SPARKL resource targeted by the `sparkl listen` command.
+LISTEN_TARGET = USER_TREE_PATH
 
 # Message sent in SMS by one of the tests.
 TEST_MESSAGE = 'Lib sms test succesful!'
@@ -65,25 +81,47 @@ TEST_DATA = [
 
     # Tests SetAPIKeys operation. Expects Ok reply.
     {
+        TEST_NAME: 'test_set_api',
         OPERATION: SET_STATE_OP,
         INPUT_FIELDS: [(ACC_SID_FLD, TWILIO_SID),
                        (AUTH_FLD, TWILIO_PWD),
                        (FROM_FLD, TWILIO_NUMBER)],
-        EXP_RESPONSE: OK_RESP},
+        EXP_RESPONSE: OK_RESP,
+
+        # State of SMS service must change.
+        MINERS: [
+            {
+                MINER_FUN: match_state_change,
+                MINER_ARGS: ('SMS',),
+                EXP: 1
+            }
+        ]},
 
     # Tests SendMessageSecure solicit. Expects Ok response.
     {
+        TEST_NAME: 'test_solicit',
         OPERATION: SOLICIT_OP,
         INPUT_FIELDS: [(ACC_SID_FLD, TWILIO_SID),
                        (AUTH_FLD, TWILIO_PWD),
                        (FROM_FLD, TWILIO_NUMBER),
                        (MSG_FLD, TEST_MESSAGE),
                        (TO_FLD, TEST_NUMBER)],
-        EXP_RESPONSE: OK_RESP}]
+        EXP_RESPONSE: OK_RESP,
+
+        # State has already changed, there should be no second change.
+        MINERS: [
+            {
+                MINER_FUN: match_state_change,
+                MINER_ARGS: ('SMS',),
+                EXP: 0
+            }
+        ]
+    }
+]
 
 
 @pytest.mark.parametrize('test_data', TEST_DATA)
-def test_lib_sms(test_data, base_setup, setup_method):
+def test_lib_sms(test_data, base_setup, setup_method, listener_setup):
     """
     Calls each set of data in TEST_DATA. The function also uses:
         - setup_method:
@@ -91,4 +129,7 @@ def test_lib_sms(test_data, base_setup, setup_method):
             and yields the SPARKL alias used in the session
     """
     alias = setup_method
-    run_tests(alias, **test_data)
+    event_queue = listener_setup
+    log_writer = base_setup
+
+    run_tests(alias, event_queue, log_writer, test_data)

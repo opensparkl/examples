@@ -46,7 +46,6 @@ def lib_create(name, names, alias):
         return
 
     print('Folder %s already exists.' % (name))
-    return
 
 
 def is_import_successful(change_message, config, folder):
@@ -80,8 +79,6 @@ def unit_import(config_files, folder, alias):
 
             # Fun prints message based on success/failure
             is_import_successful(change_message, config, folder)
-
-    return
 
 
 def multi_import():

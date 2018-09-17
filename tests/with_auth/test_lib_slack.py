@@ -1,18 +1,28 @@
 """
-Copyright (c) 2018 SPARKL Limited. All Rights Reserved.
-Author <miklos@sparkl.com> Miklos Duma.
+Author <miklos@sparkl.com> Miklos Duma
+Copyright 2018 SPARKL Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 Test cases for Crypto Portfolio SPARKL mix in examples repo.
 """
 import pytest
-from tests.conftest import (IMPORT_DIR, OPERATION, INPUT_FIELDS, EXP_RESPONSE,
-                            CHECK_FUN, run_tests, read_from_config)
+from tests.conftest import IMPORT_DIR, OPERATION, INPUT_FIELDS, MINERS, \
+    MINER_ARGS, MINER_FUN, TEST_NAME, EXP, run_tests, read_from_config
+
+from tests.filters import match_event_with_field
+
 
 # Collect link to test slack channel from environment variable.
 SLACK_CHANNEL = read_from_config('slack_channel')
-
-# Messages sent to this Slack channel must come back with error.
-WRONG_SLACK_CHANNEL = 'https://hooks.slack.com/services/bla/bla/bla'
 
 # Files to import for tests.
 FILE_PATHS = ['Library/lib_slack/lib_slack.xml']
@@ -20,46 +30,21 @@ FILE_PATHS = ['Library/lib_slack/lib_slack.xml']
 # SPARKL path to tested configuration.
 USER_TREE_PATH = '{}/lib.slack'.format(IMPORT_DIR)
 
+# SPARKL resource targeted by the `sparkl listen` command.
+LISTEN_TARGET = USER_TREE_PATH
+
 # Test input.
 TEST_MAP = '{\"field1\": \"foo\", \"field2\": \"bar\"}'
 TEST_MESSAGE_TEXT = '{\"text\": \"Test with simple text is successful.\"}'
 
-# Keys expected by SLACK.
-EXPECTED_MESSAGE_KEYS = ['color', 'fallback', 'fields', 'pretext']
-
 # Path to tested operations.
-SOLICIT_OP = '{}/Mix/Test/Start'.format(USER_TREE_PATH)
-BUILD_OP = '{}/Mix/Test/BuildMessage'.format(USER_TREE_PATH)
-SEND_OP = '{}/Mix/Test/SendToSlack'.format(USER_TREE_PATH)
+SEND_URL_OP = '{}/Mix/SendMessageUrl'.format(USER_TREE_PATH)
 
 # Input and output fields of the configuration.
-TEST_COLOUR_FLD = 'test_colour'
-TEST_HEADING_FLD = 'test_heading'
-TEST_MAP_FLD = 'test_map'
-TEST_URL_FLD = 'test_url'
-TEST_MSG_FLD = 'test_message'
-
-# SPARKL replies/responses.
-OK_RESP = 'Ok'
-ERROR_RESP = 'Error'
-
-
-#####################################################
-# Additional check functions used by the test data. #
-#####################################################
-
-
-def check_msg_keys(output_fields):
-    """
-    Checks whether the constructed message dict
-    has all the keys expected by SLACK.
-    """
-    message = output_fields[TEST_MSG_FLD]
-    message_keys = list(message.keys())
-    message_keys.sort()
-    message_keys_error = 'Expected keys are {}, ' \
-                         'not {}.'.format(EXPECTED_MESSAGE_KEYS, message_keys)
-    assert message_keys == EXPECTED_MESSAGE_KEYS, message_keys_error
+COLOUR_FLD = 'colour'
+HEADING_FLD = 'heading'
+MAP_FLD = 'map'
+URL_FLD = 'url'
 
 
 ##########################################################################
@@ -85,43 +70,51 @@ TEST_DATA = [
     # Test BuildMessage operation.
     # Expects built message to contain all the fields Slack requires.
     {
-        OPERATION: BUILD_OP,
+        TEST_NAME: 'test_send_url',
+        OPERATION: SEND_URL_OP,
         INPUT_FIELDS: [
-            (TEST_COLOUR_FLD, 'green'),
-            (TEST_HEADING_FLD, 'BuildMessage test'),
-            (TEST_MAP_FLD, TEST_MAP)],
-        EXP_RESPONSE: OK_RESP,
-        CHECK_FUN: check_msg_keys},
+            (COLOUR_FLD, 'green'),
+            (HEADING_FLD, 'BuildMessage test'),
+            (MAP_FLD, TEST_MAP),
+            (URL_FLD, SLACK_CHANNEL)],
 
-    # Test SendToSlack operation. Expects Ok reply.
-    {
-        OPERATION: SEND_OP,
-        INPUT_FIELDS: [(TEST_MSG_FLD, TEST_MESSAGE_TEXT),
-                       (TEST_URL_FLD, SLACK_CHANNEL)],
-        EXP_RESPONSE: OK_RESP},
+        MINERS: [
+            {
+                MINER_FUN: match_event_with_field,
+                MINER_ARGS: ('notify', 'SendMessageUrl'),
+                EXP: 1},
 
-    # Test SendToSlack operation with wrong URL. Expects Error reply.
-    {
-        OPERATION: SEND_OP,
-        INPUT_FIELDS: [(TEST_MSG_FLD, TEST_MESSAGE_TEXT),
-                       (TEST_URL_FLD, WRONG_SLACK_CHANNEL)],
-        EXP_RESPONSE: ERROR_RESP},
+            {
+                MINER_FUN: match_event_with_field,
+                MINER_ARGS: ('consume', 'SendMessageUrl'),
+                EXP: 1}]
+    },
 
-    # Test Start solicit operation - i.e. full transaction.
-    # Expects a message with all the fields Slack requires.
     {
-        OPERATION: SOLICIT_OP,
-        INPUT_FIELDS: [(TEST_COLOUR_FLD, 'red'),
-                       (TEST_HEADING_FLD, 'Full solicit test with fields'),
-                       (TEST_MAP_FLD, TEST_MAP),
-                       (TEST_URL_FLD, SLACK_CHANNEL)],
-        EXP_RESPONSE: OK_RESP,
-        CHECK_FUN: check_msg_keys}
+        TEST_NAME: 'test_send_url_simple',
+        OPERATION: SEND_URL_OP,
+        INPUT_FIELDS: [
+            (COLOUR_FLD, 'amber'),
+            (HEADING_FLD, 'Simple text test'),
+            (MAP_FLD, TEST_MESSAGE_TEXT),
+            (URL_FLD, SLACK_CHANNEL)],
+
+        MINERS: [
+            {
+                MINER_FUN: match_event_with_field,
+                MINER_ARGS: ('notify', 'SendMessageUrl'),
+                EXP: 1},
+
+            {
+                MINER_FUN: match_event_with_field,
+                MINER_ARGS: ('consume', 'SendMessageUrl'),
+                EXP: 1}]
+    }
 ]
 
 
 @pytest.mark.parametrize('test_data', TEST_DATA)
-def test_lib_slack(test_data, base_setup, setup_method):
+def test_lib_slack(test_data, base_setup, setup_method, listener_setup):
     """
     Calls each set of data in TEST_DATA. The function also uses:
         - setup_method:
@@ -129,4 +122,6 @@ def test_lib_slack(test_data, base_setup, setup_method):
             and yields the SPARKL alias used in the session
     """
     alias = setup_method
-    run_tests(alias, **test_data)
+    event_queue = listener_setup
+    log_writer = base_setup
+    run_tests(alias, event_queue, log_writer, test_data)
