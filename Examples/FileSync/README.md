@@ -13,6 +13,7 @@ Video of this example (4 minutes):
 ## Dependencies
 
 * Use `git clone https://opensparkl/examples` to clone this repo
+* The master and slave agents use the [sse_cli](https://github.com/opensparkl/sse_cli)
 * The `master.py` agent uses the [watchdog](https://pythonhosted.org/watchdog/) utility which
   must be installed first.
 
