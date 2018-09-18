@@ -1,5 +1,6 @@
 # Test log stuff
 log.txt
+log.html
 .pytest_cache
 
 # Byte-compiled / optimized / DLL files
