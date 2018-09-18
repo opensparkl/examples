@@ -1,0 +1,284 @@
+<?xml version="1.0"?>
+<folder name="TripBooker">
+  <service name="Sequencer" provision="sequencer"/>
+  <mix name="Mix">
+    <field name="payreceipt" type="json"/>
+    <field name="booking" type="json"/>
+    <field name="details" type="json"/>
+    <field name="carbooking" type="json"/>
+    <field name="hotelbooking" type="json"/>
+    <field name="flightbooking" type="json"/>
+    <field name="undo" type="json"/>
+    <field name="undo_car" type="json"/>
+    <field name="undo_flight" type="json"/>
+    <field name="undo_hotel" type="json"/>
+    <field name="undo_pay" type="json"/>
+    <field name="event" type="json"/>
+    <field name="reason" type="term"/>
+    <solicit name="BookTrip" service="Sequencer" fields="details">
+      <response name="Ok" fields="carbooking flightbooking hotelbooking payreceipt"/>
+      <response name="Error" fields="reason undo"/>
+    </solicit>
+    <solicit name="CompensateTrip" service="Sequencer" fields="event">
+      <response name="Ok" fields="details undo"/>
+    </solicit>
+    <mix name="DeployRemove">
+      <service name="Sequencer" provision="sequencer"/>
+      <field name="OK"/>
+      <field name="DEPLOY"/>
+      <field name="REMOVE"/>
+      <solicit name="Deploy" service="Sequencer" fields="DEPLOY event">
+        <response name="Ok" fields="OK"/>
+        <response name="Error" fields="reason"/>
+      </solicit>
+      <solicit name="Remove" service="Sequencer" fields="REMOVE event">
+        <response name="Ok" fields="OK"/>
+        <response name="Error" fields="reason"/>
+      </solicit>
+      <folder name="Impl">
+        <service name="Deployer" provision="subr">
+          <prop name="subr.import" key="lib.openfaas"/>
+        </service>
+        <consume name="Deploy" service="Deployer" fields="DEPLOY event">
+          <reply name="Ok" fields="OK"/>
+          <reply name="Error" fields="reason"/>
+          <prop name="subr.spec" function="Deploy"/>
+        </consume>
+        <consume name="Remove" service="Deployer" fields="REMOVE event">
+          <reply name="Ok" fields="OK"/>
+          <reply name="Error" fields="reason"/>
+          <prop name="subr.spec" function="Remove"/>
+        </consume>
+      </folder>
+    </mix>
+    <folder name="Compensate">
+      <service name="Extracter" provision="expr"/>
+      <request name="ExtractData" service="Extracter" fields="event">
+        <reply name="Ok" fields="details reason"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+#{"data" := #{"details" := Details}} = get("event"), 
+put("details", Details), 
+"Ok".
+]]></prop>
+      </request>
+    </folder>
+    <folder name="BookCar">
+      <service name="CarBooker" provision="subr">
+        <prop name="instance.spec" onclose="../DeployRemove/Remove" onopen="../DeployRemove/Deploy" onerror="../CompensateTrip" ttl="120s"/>
+        <prop name="subr.import" key="lib.openfaas"/>
+        <prop name="faas.invoke.spec" type="python3"/>
+        <prop name="faas.invoke.handler.py"><![CDATA[
+import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    details = json.loads(req)
+    fail = details.get("fail")
+    if fail and fail == "car":
+        result = {"error": "unable to process car"}
+    else:
+        result = {"data": {"carbooking": "confirmed"}}
+    return json.dumps(result)
+    ]]></prop>
+        <prop name="faas.compensate.spec" type="python3"/>
+        <prop name="faas.compensate.handler.py"><![CDATA[import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    booking = {"data": {"carbooking": "compensated"}}
+
+    return json.dumps(booking)
+    ]]></prop>
+      </service>
+      <request name="Invoke" service="CarBooker" fields="details">
+        <reply name="Ok" fields="carbooking">
+          <prop name="params"><![CDATA[result:carbooking]]></prop>
+        </reply>
+        <reply name="Error" fields="reason"/>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+      <request name="Compensate" service="CarBooker" fields="details reason undo_pay">
+        <reply name="Ok" fields="undo_car">
+          <prop name="params"><![CDATA[result:undo_car]]></prop>
+        </reply>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+    </folder>
+    <folder name="BookHotel">
+      <service name="HotelBooker" provision="subr">
+        <prop name="instance.spec" onclose="../DeployRemove/Remove" onopen="../DeployRemove/Deploy" onerror="../CompensateTrip" ttl="120s"/>
+        <prop name="subr.import" key="lib.openfaas"/>
+        <prop name="faas.invoke.spec" type="python3"/>
+        <prop name="faas.invoke.handler.py"><![CDATA[
+import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    details = json.loads(req)
+    fail = details.get("fail")
+    if fail and fail == "hotel":
+        result = {"error": "unable to process hotel"}
+    else:
+        result = {"data": {"hotelbooking": "confirmed"}}
+    return json.dumps(result)
+    ]]></prop>
+        <prop name="faas.compensate.spec" type="python3"/>
+        <prop name="faas.compensate.handler.py"><![CDATA[import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    booking = {"data": {"hotelbooking": "compensated"}}
+
+    return json.dumps(booking)
+    ]]></prop>
+      </service>
+      <request name="Invoke" service="HotelBooker" fields="details">
+        <reply name="Ok" fields="hotelbooking">
+          <prop name="params"><![CDATA[result:hotelbooking]]></prop>
+        </reply>
+        <reply name="Error" fields="reason"/>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+      <request name="Compensate" service="HotelBooker" fields="details reason undo_pay">
+        <reply name="Ok" fields="undo_hotel">
+          <prop name="params"><![CDATA[result:undo_hotel]]></prop>
+        </reply>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+    </folder>
+    <folder name="BookFlight">
+      <service name="FlightBooker" provision="subr">
+        <prop name="instance.spec" onclose="../DeployRemove/Remove" onopen="../DeployRemove/Deploy" onerror="../CompensateTrip" ttl="120s"/>
+        <prop name="subr.import" key="lib.openfaas"/>
+        <prop name="faas.invoke.spec" type="python3"/>
+        <prop name="faas.invoke.handler.py"><![CDATA[
+import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    details = json.loads(req)
+    fail = details.get("fail")
+    if fail and fail == "flight":
+        result = {"error": "unable to process flight"}
+    else:
+        result = {"data": {"flightbooking": "confirmed"}}
+    return json.dumps(result)
+    ]]></prop>
+        <prop name="faas.compensate.spec" type="python3"/>
+        <prop name="faas.compensate.handler.py"><![CDATA[import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    booking = {"data": {"flightbooking": "compensated"}}
+
+    return json.dumps(booking)
+    ]]></prop>
+      </service>
+      <request name="Invoke" service="FlightBooker" fields="details">
+        <reply name="Ok" fields="flightbooking">
+          <prop name="params"><![CDATA[result:flightbooking]]></prop>
+        </reply>
+        <reply name="Error" fields="reason"/>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+      <request name="Compensate" service="FlightBooker" fields="details reason undo_pay">
+        <reply name="Ok" fields="undo_flight">
+          <prop name="params"><![CDATA[result:undo_flight]]></prop>
+        </reply>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+    </folder>
+    <folder name="Payment">
+      <service name="Zipper" provision="expr"/>
+      <service name="PayAction" provision="subr">
+        <prop name="instance.spec" onclose="../DeployRemove/Remove" onopen="../DeployRemove/Deploy" onerror="../CompensateTrip" ttl="120s"/>
+        <prop name="subr.import" key="lib.openfaas"/>
+        <prop name="faas.invoke.spec" type="python3"/>
+        <prop name="faas.invoke.handler.py"><![CDATA[
+import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    zipped = json.loads(req)
+    fail = zipped.get("details").get("fail")
+    if fail and fail == "payment":
+        result = {"error": "unable to process payment"}
+    else:
+        result = {"data": {"payment": "confirmed"}}
+    return json.dumps(result)
+    ]]></prop>
+        <prop name="faas.compensate.spec" type="python3"/>
+        <prop name="faas.compensate.handler.py"><![CDATA[import json
+def handle(req):
+    """handle a request to the function
+    Args:
+        req (str): request body
+    """
+    payment = {"data": {"payment": "compensated"}}
+
+    return json.dumps(payment)
+    ]]></prop>
+      </service>
+      <field name="tripbooking" type="json"/>
+      <request name="Invoke" service="PayAction" fields="tripbooking">
+        <reply name="Ok" fields="payreceipt">
+          <prop name="params"><![CDATA[result:payreceipt]]></prop>
+        </reply>
+        <reply name="Error" fields="reason"/>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:tripbooking]]></prop>
+      </request>
+      <request name="Compensate" service="PayAction" fields="details reason">
+        <reply name="Ok" fields="undo_pay">
+          <prop name="params"><![CDATA[result:undo_pay]]></prop>
+        </reply>
+        <prop name="subr.spec" function="Invoke"/>
+        <prop name="params"><![CDATA[data:details]]></prop>
+      </request>
+      <request name="ZipDetails" service="Zipper" fields="carbooking hotelbooking flightbooking details">
+        <reply name="Ok" fields="tripbooking"/>
+        <reply name="Error" fields="reason"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[Trip = 
+  #{"flight" => get("flightbooking"),
+    "car" => get("carbooking"),
+    "hotel" => get("hotelbooking"), 
+    "details" => get("details")}, 
+put("tripbooking", Trip), 
+"Ok".
+]]></prop>
+      </request>
+      <request name="ZipCompensation" service="Zipper" fields="undo_car undo_flight undo_hotel undo_pay">
+        <reply name="Ok" fields="undo"/>
+        <prop name="expr.src" content-type="text/x-erlang"><![CDATA[
+Comp = 
+  #{"flight" => get("undo_flight"),
+    "car" => get("undo_car"),
+    "hotel" => get("undo_hotel"),
+    "payment" => get("undo_pay")}, 
+put("undo", Comp), 
+"Ok".
+]]></prop>
+      </request>
+    </folder>
+  </mix>
+</folder>

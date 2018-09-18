@@ -1,0 +1,411 @@
+<?xml version="1.0"?>
+<folder name="lib.openfaas">
+  <service name="Export" provision="subr">
+    <prop name="subr.export" key="lib.openfaas"/>
+  </service>
+  <service name="Sequencer" provision="sequencer"/>
+  <service name="OpenFaaS" provision="expr"/>
+  <mix name="Mix">
+    <field name="DEPLOY"/>
+    <field name="REMOVE"/>
+    <field name="INVOKE"/>
+    <field name="data" type="json"/>
+    <field name="result" type="json"/>
+    <field name="reason" type="term"/>
+    <field name="event" type="json"/>
+    <field name="OK"/>
+    <solicit name="Deploy" service="Sequencer" clients="Export" fields="DEPLOY event">
+      <response name="Ok" fields="OK"/>
+      <response name="Error" fields="reason"/>
+      <prop name="subr.spec" function="Deploy"/>
+    </solicit>
+    <solicit name="Remove" service="Sequencer" clients="Export" fields="REMOVE event">
+      <response name="Ok" fields="OK"/>
+      <response name="Error" fields="reason"/>
+      <prop name="subr.spec" function="Remove"/>
+    </solicit>
+    <solicit name="Invoke" service="Sequencer" clients="Export" fields="INVOKE data">
+      <response name="Ok" fields="result"/>
+      <response name="Error" fields="reason"/>
+      <prop name="subr.spec" function="Invoke"/>
+    </solicit>
+    <folder name="Impl">
+      <request name="Deploy" service="OpenFaaS" fields="DEPLOY event">
+        <reply name="Ok" fields="OK"/>
+        <reply name="Error" fields="reason"/>
+        <prop name="expr.src"><![CDATA[
+try
+  DeployFun =
+    fun(TmpDir_, ServiceRec_, ServiceName_, ServiceFn_) ->
+      PropPrefix_ =
+        "faas." ++ ServiceFn_ ++ ".",
+
+      ServiceProps_ =
+        element(8, ServiceRec_),
+
+      FullName =
+        ServiceName_ ++ "-" ++ ServiceFn_,
+
+      FaaSSpecName =
+        PropPrefix_ ++ "spec",
+
+      Type =
+        sse_cfg_prop:scoped_value(
+          ServiceRec_, {FaaSSpecName, "type"}),
+      sse_log_otp:debug(
+        deploy, df1, [
+          {type, Type}]),
+
+      NewCmd =
+        string:join(
+          ["cd", TmpDir_, "&&", "faas-cli", "new", FullName, "--lang", Type], " "),
+      NewRes =
+        os:cmd(
+          NewCmd),
+      sse_log_otp:debug(
+        deploy, df2, [
+          {newcmd, NewCmd},
+          {newresult, NewRes}]),
+
+      %% Write the other faas.X. props as function artifact files.
+      FaaSProps =
+        [SP ||
+          {prop, Name, _A, _C} = SP <- ServiceProps_,
+          string:str(Name, PropPrefix_) == 1, Name /= FaaSSpecName],
+      sse_log_otp:debug(
+        deploy, df3, [
+          {faasprops, FaaSProps}]),
+
+      lists:foreach(
+        fun(Prop) ->
+          {prop, Name, _A,
+            [{'$primitive',string, Content_}]} =
+            Prop,
+          ["faas", ServiceFn_ | Name_] =
+            string:tokens(Name, "."),
+          File_ =
+            string:join(Name_, "."),
+          File =
+            filename:join([TmpDir_, FullName, File_]),
+          Content =
+            u(Content_),
+          sse_log_otp:debug(
+            deploy, df4, [
+              {file, File},
+              {content, Content}]),
+          ok =
+            file:write_file(File, <<Content/binary, $\n>>, [write])
+        end,
+        FaaSProps),
+
+      %% Build the function
+      BuildCmd =
+        string:join(
+          ["cd", TmpDir_, "&&", "faas-cli", "build", "-f", FullName ++ ".yml"], " "),
+      BuildRes =
+        os:cmd(
+          BuildCmd),
+      sse_log_otp:debug(
+        deploy, df5, [
+          {buildcmd, BuildCmd},
+          {buildresult, BuildRes}]),
+
+      %% Deploy the function
+      DeployCmd =
+        string:join(
+          ["cd", TmpDir_, "&&", "faas-cli", "deploy", "-f", FullName ++ ".yml"], " "),
+      DeployRes =
+        os:cmd(
+          DeployCmd),
+      sse_log_otp:debug(
+        deploy, df6, [
+          {deploycmd, DeployCmd},
+          {deployresult, DeployRes}])
+
+    end,
+
+  %% Get properties of the service to be deployed.
+  #{"service" := ServicePath_} =
+    get("event"),
+  sse_log_otp:debug(
+    deploy, 1, [
+      {servicepath, ServicePath_},
+      {cause, cause}]),
+
+  [User | ServicePath__] =
+    string:tokens(s(ServicePath_), "/"),
+  ServiceName =
+    string:to_lower(
+      string:join(
+        lists:append(
+          [string:tokens(User, "@."),
+           [lists:last(ServicePath__)]]), "-")),
+  ServicePath =
+    string:join(ServicePath__, "/"),
+  {ok, UserRec} =
+    sse_cfg:get_user(User),
+  Home =
+    element(8, UserRec),
+  {ok, ServiceRec} =
+    sse_cfg:retrieve_relative(
+      Home, ServicePath),
+
+  sse_log_otp:debug(
+    deploy, 2, [
+      {service, ServiceRec},
+      {servicename, ServiceName}]),
+
+  %% Ensure directory
+  TmpDir =
+    "/tmp/faas",
+  ok =
+    filelib:ensure_dir(
+      filename:join(TmpDir, "nil")),
+  sse_log_otp:debug(
+    deploy, 3, [{tmpdir, TmpDir}]),
+
+  ServiceFns =
+    sets:to_list(
+      sets:from_list(
+        [lists:nth(2, string:tokens(N, ".")) ||
+          N <- [element(2, P) || P <- element(8, ServiceRec)],
+          string:str(N, "faas.") == 1])),
+  sse_log_otp:debug(
+    deploy, 4, [{servicefns, ServiceFns}]),
+
+  lists:foreach(
+    fun(ServiceFn) ->
+      DeployFun(TmpDir, ServiceRec, ServiceName, ServiceFn)
+    end,
+    ServiceFns),
+  "Ok"
+catch
+  C:E ->
+    put("reason", {C, E}),
+    "Error"
+end.
+]]></prop>
+      </request>
+      <request name="Remove" service="OpenFaaS" fields="REMOVE event">
+        <reply name="Ok" fields="OK"/>
+        <reply name="Error" fields="reason"/>
+        <prop name="expr.src"><![CDATA[
+try
+  DeleteEntry =
+    fun(Entry) ->
+      try
+        sse_log_otp:debug(
+          remove, de1, [
+            {entry, Entry}]),
+        sse_util:delete_entry(
+          Entry)
+      catch
+        _:_ ->
+          ok
+      end
+    end,
+
+  RemoveFun =
+    fun(TmpDir_, ServiceName_, ServiceFn_) ->
+      FullName =
+        ServiceName_ ++ "-" ++ ServiceFn_,
+
+      RemoveCmd =
+        string:join(
+          ["cd", TmpDir_, "&&", "faas-cli", "remove", FullName], " "),
+      RemoveRes =
+        os:cmd(
+          RemoveCmd),
+      sse_log_otp:debug(
+        remove, rf1, [
+          {removecmd, RemoveCmd},
+          {removeresult, RemoveRes}]),
+
+      DeleteEntry(
+        filename:join(
+          TmpDir_, FullName)),
+      DeleteEntry(
+        filename:join(
+          TmpDir_, FullName ++ ".yml"))
+    end,
+
+  %% Get properties of the service to be deployed.
+  #{"service" := ServicePath_} =
+    get("event"),
+  sse_log_otp:debug(
+    remove, 1, [
+      {servicepath, ServicePath_},
+      {cause, cause}]),
+
+  [User | ServicePath__] =
+    string:tokens(s(ServicePath_), "/"),
+  ServiceName =
+    string:to_lower(
+      string:join(
+        lists:append(
+          [string:tokens(User, "@."),
+            [lists:last(ServicePath__)]]), "-")),
+  ServicePath =
+    string:join(ServicePath__, "/"),
+  {ok, UserRec} =
+    sse_cfg:get_user(User),
+  Home =
+    element(8, UserRec),
+  {ok, ServiceRec} =
+    sse_cfg:retrieve_relative(
+      Home, ServicePath),
+
+  sse_log_otp:debug(
+    remove, 2, [
+      {service, ServiceRec},
+      {servicename, ServiceName}]),
+
+  %% Ensure directory
+  TmpDir =
+    "/tmp/faas",
+  ok =
+    filelib:ensure_dir(
+      filename:join(TmpDir, "nil")),
+  sse_log_otp:debug(
+    remove, 3, [{tmpdir, TmpDir}]),
+
+  ServiceFns =
+    sets:to_list(
+      sets:from_list(
+        [lists:nth(2, string:tokens(N, ".")) ||
+          N <- [element(2, P) || P <- element(8, ServiceRec)],
+          string:str(N, "faas.") == 1])),
+  sse_log_otp:debug(
+    remove, 4, [{servicefns, ServiceFns}]),
+
+  lists:foreach(
+    fun(ServiceFn) ->
+      RemoveFun(TmpDir, ServiceName, ServiceFn)
+    end,
+    ServiceFns),
+  "Ok"
+catch
+  C:E ->
+    put("reason", {C, E}),
+    "Error"
+end.
+]]></prop>
+      </request>
+      <request name="Invoke" service="OpenFaaS" fields="INVOKE data">
+        <reply name="Ok" fields="result"/>
+        <reply name="Error" fields="reason"/>
+        <prop name="expr.src"><![CDATA[
+try
+  Causes =
+    [C || {cause, {E, _}, _, _} = C <- Meta(cause), E == data_event],
+  sse_log_otp:debug(
+    invoke, 1, [{causes, Causes}]),
+
+  {cause, _, Request, _} =
+    lists:nth(3, Causes), % not the lib.openfaas ops which will be the first two
+  {ok, RequestRec} =
+    sse_cfg:get_record_quick(Request),
+  sse_log_otp:debug(
+    invoke, 2, [{request, RequestRec}]),
+
+  ServiceFn =
+    string:to_lower(
+      element(3, RequestRec)),
+
+  ServiceRef =
+    element(5, RequestRec),
+  ServicePath_ =
+    sse_cfg_util:path_of(
+      ServiceRef),
+  sse_log_otp:debug(
+    invoke, 3, [{servicepath, ServicePath_}]),
+
+  [User | ServicePath__] =
+    string:tokens(s(ServicePath_), "/"),
+  ServiceName =
+    string:to_lower(
+      string:join(
+        lists:append(
+          [string:tokens(User, "@."),
+            [lists:last(ServicePath__)]]), "-")),
+  FullName =
+    ServiceName ++ "-" ++ ServiceFn,
+
+  sse_log_otp:debug(
+    invoke, 4, [{fullname, FullName}]),
+
+  Data_ =
+    get("data"),
+  {ok, Data} =
+    sse_json:encode(
+      Data_),
+  sse_log_otp:debug(
+    invoke, 5, [{data, Data}]),
+
+  TmpDir =
+    "/tmp/faas",
+
+  InvokeCmd =
+    string:join(
+      ["cd", TmpDir, "&&",
+        "echo", "'" ++ s(Data) ++ "'", "|", "faas-cli", "invoke", "-f", FullName ++ ".yml", FullName],
+      " "),
+  sse_log_otp:debug(
+    invoke, 6, [
+      {invokecmd, InvokeCmd}]),
+
+  InvokeFun =
+    fun() ->
+      Result_ =
+        u(string:strip(
+          os:cmd(
+            InvokeCmd), both, $\n)),
+      sse_log_otp:debug(
+        invoke, 7, [
+          {invokeresult, Result_}]),
+      if
+        Result_ == <<"Server returned unexpected status code: 502 - ">> ->
+          error;
+
+        true ->
+          {ok, Result_}
+      end
+    end,
+
+  {ok, Result__} =
+    sse_util:wait_for(InvokeFun, 1, 3),
+
+  {ok, Result} =
+    sse_json:decode(
+      Result__),
+  sse_log_otp:debug(
+    invoke, 8, [{result, Result}]),
+  Error = 
+    lists:member(
+       "error", maps:keys(Result)),
+  sse_log_otp:debug(
+    invoke, 9, [{error, Error}]),
+
+  if 
+    Error ->
+      put("reason", maps:get("error", Result)),
+      "Error";
+
+    true ->
+      ResultData = 
+        maps:get("data", Result), 
+      sse_log_otp:debug(
+        invoke, 10, [{resultdata, ResultData}]),
+      put("result", ResultData),
+      "Ok"
+   end
+catch
+  C:E ->
+    put("reason", {C, E}),
+    "Error"
+end.
+]]></prop>
+      </request>
+    </folder>
+  </mix>
+</folder>
