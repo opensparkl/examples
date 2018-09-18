@@ -4,7 +4,7 @@ tree to one or more slave directories._
 
 Middleware mix (click to view, right-click to save):
 
-* [FileSync](https://rawgit.com/jacobythwaites/examples/file_sync/Examples/FileSync/FileSync.xml)
+* [FileSync](https://rawgit.com/opensparkl/examples/master/Examples/FileSync/FileSync.xml)
 
 Video of this example (4 minutes):
 
