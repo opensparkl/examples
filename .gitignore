@@ -1,5 +1,4 @@
 # Test log stuff
-*.html
 log.txt
 .pytest_cache
 
