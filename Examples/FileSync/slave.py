@@ -30,9 +30,8 @@ def put(event):
         os.makedirs(path, exist_ok=True)
     else:
         binary = b64decode(event['data']['bytes'])
-
-    with open(path, 'wb') as file:
-        file.write(binary)
+        with open(path, 'wb') as file:
+            file.write(binary)
 
 
 def delete(event):
