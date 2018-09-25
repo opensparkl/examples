@@ -19,12 +19,12 @@ import os
 from base64 import b64decode
 
 
-def put(event):
+def put(watch, event):
     """
     (Over)writes a directory or file.
     """
     is_dir = event['data']['is_dir']
-    path = event['data']['path']
+    path = os.path.join(watch, event['data']['path'])
 
     if is_dir:
         os.makedirs(path, exist_ok=True)
@@ -34,13 +34,13 @@ def put(event):
             file.write(binary)
 
 
-def delete(event):
+def delete(watch, event):
     """
     Deletes a directory or file. If the slave is not in sync,
     this may cause an exception which is caught.
     """
     is_dir = event['data']['is_dir']
-    path = event['data']['path']
+    path = os.path.join(watch, event['data']['path'])
 
     try:
         if is_dir:
@@ -51,13 +51,13 @@ def delete(event):
         print(exception)
 
 
-def move(event):
+def move(watch, event):
     """
     Moves (renames) a directory or file. If the slave is not in sync,
     this may cause an exception which is caught.
     """
-    old = event['data']['old']
-    path = event['data']['path']
+    old = os.path.join(watch, event['data']['old'])
+    path = os.path.join(watch, event['data']['path'])
 
     try:
         os.replace(old, path)
@@ -69,13 +69,15 @@ def onopen(service):
     """
     SPARKL callback sets implementation dict.
     """
-    print("Slave listener started in {cwd}".format(
-        cwd=os.getcwd()))
+    watch = os.getcwd()
+    print("Slave listener started in {watch}".format(
+        watch=watch))
 
     service.impl = {
-        'Mix/Slave/Put':    put,
-        'Mix/Slave/Delete': delete,
-        'Mix/Slave/Move':   move}
+        'Mix/Slave/Put':    lambda event: put(watch, event),
+        'Mix/Slave/Delete': lambda event: delete(watch, event),
+        'Mix/Slave/Move':   lambda event: move(watch, event)
+    }
 
 
 def onclose(_service):
