@@ -27,29 +27,38 @@ class CustomHandler(FileSystemEventHandler):
     invoke the functions corresponding to the notify
     operations on the master service.
     """
-    def __init__(self, service):
+    def __init__(self, service, watch):
         self.service = service
+        self.watch = watch
 
     def on_created(self, event):
+        path = os.path.relpath(event.src_path, self.watch)
         binary = bytearray()
         if not event.is_directory:
             with open(event.src_path, mode='rb') as file:
                 binary = file.read()
 
-        put(self.service, event.is_directory, event.src_path, binary)
+        put(self.service, event.is_directory, path, binary)
 
     def on_deleted(self, event):
-        delete(self.service, event.is_directory, event.src_path)
+        path = os.path.relpath(event.src_path, self.watch)
+        delete(self.service, event.is_directory, path)
 
     def on_modified(self, event):
+        path = os.path.relpath(event.src_path, self.watch)
         binary = bytearray()
         if not event.is_directory:
             with open(event.src_path, mode='rb') as file:
                 binary = file.read()
-            put(self.service, event.is_directory, event.src_path, binary)
+            put(self.service, event.is_directory, path, binary)
 
     def on_moved(self, event):
-        move(self.service, event.is_directory, event.src_path, event.dest_path)
+        src = os.path.relpath(event.src_path, self.watch)
+        if event.dest_path.startswith(self.watch):
+            dst = os.path.relpath(event.dest_path, self.watch)
+            move(self.service, event.is_directory, src, dst)
+        else:
+            delete(self.service, event.is_directory, src)
 
 
 def onopen(service):
@@ -57,12 +66,13 @@ def onopen(service):
     SPARKL callback initialises the observer with an instance
     of the custom watchdog handler class.
     """
-    event_handler = CustomHandler(service)
+    watch = os.getcwd()
+    event_handler = CustomHandler(service, watch)
     service.observer = Observer()
-    service.observer.schedule(event_handler, '.', recursive=True)
+    service.observer.schedule(event_handler, watch, recursive=True)
     service.observer.start()
-    print("Master watchdog started in {cwd}".format(
-        cwd=os.getcwd()))
+    print("Master watchdog started in {watch}".format(
+        watch=watch))
 
 
 def onclose(service):
