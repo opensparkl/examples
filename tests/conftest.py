@@ -61,30 +61,59 @@ ZERO_ERROR = 'The value of \'{}\' must not be zero.'
 
 class ChDir(object):
     """
-    Step into a directory temporarily.
+    Context manager for stepping into a directory temporarily.
+
+    Usage:
+
+    with ChDir(path):
+        do_stuff()
     """
 
     def __init__(self, path):
+        """
+        Saves the old and new directory.
+        """
         self.old_dir = os.getcwd()
         self.new_dir = path
 
     def __enter__(self):
+        """
+        Enters into the new directory.
+        """
         os.chdir(self.new_dir)
 
     def __exit__(self, *args):
+        """
+        Returns to the original directory.
+        """
         os.chdir(self.old_dir)
 
 
 def start_service_in(sparkl_path, module_name, watchdog_path,
                      **kwargs):
+    """
+    Maps a SPARKL service to its implementation using `sparkl service`.
+        - sparkl_path:
+            The path to the SPARKL service in the user tree
+        - module_name:
+            The name of the implementation module (without the suffix)
+        - watchdog_path:
+            The directory in which the `sparkl service` command is executed
+            (and the Python watchdog is started)
+    """
+
+    # Filter kwargs for `sparkl service`
     service_kwargs = dict()
     for key, value in kwargs.items():
         if key in ['path', 'alias']:
             service_kwargs[key] = value
+
+    # Start the SPARKL service in the specified directory.
     with ChDir(watchdog_path):
         sparkl('service', sparkl_path, module_name,
                **service_kwargs)
 
+        # Give the watchdog time to start.
         sleep(kwargs.get('wait', 3))
 
 
@@ -404,19 +433,28 @@ def start_listener_proc(listen_target, alias):
 
 @pytest.fixture(scope='module')
 def file_sync_setup(request):
+    """
+    Setup and teardown for testing the file_sync demo.
+    """
 
+    # Create two temporary directories.
     master_dir = tempfile.mkdtemp()
     slave_dir = tempfile.mkdtemp()
 
+    # Collect constants from the file_sync test module.
     master_service = getattr(request.module, 'MASTER_SERVICE')
     slave_service = getattr(request.module, 'SLAVE_SERVICE')
     path_to_modules = getattr(request.module, 'PATH_TO_MIX_DIR')
 
+    # Start the master and slave watchdogs.
     start_service_in(master_service, 'master', master_dir,
                      alias=ALIAS, path=path_to_modules)
     start_service_in(slave_service, 'slave', slave_dir,
                      alias=ALIAS, path=path_to_modules)
+
     yield master_dir, slave_dir
+
+    # Stop the services and remove the temp dirs.
     sparkl('stop', master_service, alias=ALIAS)
     sparkl('stop', slave_service, alias=ALIAS)
     subprocess.check_call(['rm', '-rf', master_dir])
