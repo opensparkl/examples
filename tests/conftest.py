@@ -424,7 +424,7 @@ def file_sync_setup(request):
 
 
 @pytest.fixture(scope='module')
-def setup_method(request):
+def module_setup(request):
     """
     Setup method used by tests. Called once per test modules.
 
@@ -446,7 +446,7 @@ def setup_method(request):
 
 
 @pytest.fixture(scope='session')
-def base_setup():
+def session_setup():
     """
     Sets the test environment for all test modules.
     """

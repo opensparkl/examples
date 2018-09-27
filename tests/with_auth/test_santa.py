@@ -218,15 +218,21 @@ TEST_DATA = [
 
 
 @pytest.mark.parametrize('test_data', TEST_DATA)
-def test_santa(test_data, base_setup, setup_method, listener_setup):
+def test_santa(test_data, session_setup, module_setup, listener_setup):
     """
     Calls each set of data in TEST_DATA. The function also uses:
-        - setup_method:
+        - session_setup:
+            A setup method per test session. It handles connectins to SPARKL
+            and starts the log writer co-routine.
+        - module_setup:
             A basic setup method that imports the needed configuration(s)
-            and yields the SPARKL alias used in the session
+            and yields the SPARKL alias used in the session.
+        - listener_setup:
+            A setup method that starts the SPARKL listener and places
+            events in a queue.
     """
-    alias = setup_method
+    log_writer = session_setup
+    alias = module_setup
     event_queue = listener_setup
-    log_writer = base_setup
 
     run_tests(alias, event_queue, log_writer, test_data)

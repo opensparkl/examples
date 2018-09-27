@@ -93,17 +93,21 @@ TEST_DATA = [
 
 
 @pytest.mark.parametrize('test_data', TEST_DATA)
-def test_vibr(test_data, base_setup, setup_method, listener_setup):
+def test_vibr(test_data, session_setup, module_setup, listener_setup):
     """
-    Test filtered subroutines. For any given vibration value, only
-    one of the subroutine notifies should be triggered.
-
-    The test fails, if:
-        - No notify events happen due to the test.
-        - The expected subroutine notify is not triggered.
-        - Any of the unexpected subroutine notifies gets triggered.
+    Calls each set of data in TEST_DATA. The function also uses:
+        - session_setup:
+            A setup method per test session. It handles connectins to SPARKL
+            and starts the log writer co-routine.
+        - module_setup:
+            A basic setup method that imports the needed configuration(s)
+            and yields the SPARKL alias used in the session.
+        - listener_setup:
+            A setup method that starts the SPARKL listener and places
+            events in a queue.
     """
+    log_writer = session_setup
+    alias = module_setup
     event_queue = listener_setup
-    log_writer = base_setup
-    alias = setup_method
+
     run_tests(alias, event_queue, log_writer, test_data)
