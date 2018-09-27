@@ -61,3 +61,8 @@ Use our template to write your own tests and add them to the existing framework.
 3. Edit the file with the help of the comments in it.
 4. Save it inside the `no_auth` folder.
 5. Run the tests to see if your new addition is working.
+
+## The test log
+Each test run writes a log file. It comprises all SPARKL events that happen during the tests.
+
+The log file is saved as: `tests/test_resources/log.html`.
