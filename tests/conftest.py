@@ -14,15 +14,18 @@ limitations under the License.
 
 Test harness for testing SPARKL sample configs in examples repo.
 """
+import subprocess
 from multiprocessing import Process, Queue
 from queue import Empty
 
+import tempfile
 import time
 import uuid
 import os
 import json
 import pytest
 
+from time import sleep
 from sparkl_cli.main import sparkl
 from tests.write_test_log_html import start_test_log, write_log, stop_test_log
 
@@ -54,6 +57,35 @@ ERROR = 'error'
 # Error messages
 FLOAT_ERROR = 'The value of \'{}\' must be a float.'
 ZERO_ERROR = 'The value of \'{}\' must not be zero.'
+
+
+class ChDir(object):
+    """
+    Step into a directory temporarily.
+    """
+
+    def __init__(self, path):
+        self.old_dir = os.getcwd()
+        self.new_dir = path
+
+    def __enter__(self):
+        os.chdir(self.new_dir)
+
+    def __exit__(self, *args):
+        os.chdir(self.old_dir)
+
+
+def start_service_in(sparkl_path, module_name, watchdog_path,
+                     **kwargs):
+    service_kwargs = dict()
+    for key, value in kwargs.items():
+        if key in ['path', 'alias']:
+            service_kwargs[key] = value
+    with ChDir(watchdog_path):
+        sparkl('service', sparkl_path, module_name,
+               **service_kwargs)
+
+        sleep(kwargs.get('wait', 3))
 
 
 def read_from_config(cfg_key):
@@ -368,6 +400,27 @@ def start_listener_proc(listen_target, alias):
     # Give the process time to come up properly.
     time.sleep(1)
     return event_queue, listen_process
+
+
+@pytest.fixture(scope='module')
+def file_sync_setup(request):
+
+    master_dir = tempfile.mkdtemp()
+    slave_dir = tempfile.mkdtemp()
+
+    master_service = getattr(request.module, 'MASTER_SERVICE')
+    slave_service = getattr(request.module, 'SLAVE_SERVICE')
+    path_to_modules = getattr(request.module, 'PATH_TO_MIX_DIR')
+
+    start_service_in(master_service, 'master', master_dir,
+                     alias=ALIAS, path=path_to_modules)
+    start_service_in(slave_service, 'slave', slave_dir,
+                     alias=ALIAS, path=path_to_modules)
+    yield master_dir, slave_dir
+    sparkl('stop', master_service, alias=ALIAS)
+    sparkl('stop', slave_service, alias=ALIAS)
+    subprocess.check_call(['rm', '-rf', master_dir])
+    subprocess.check_call(['rm', '-rf', slave_dir])
 
 
 @pytest.fixture(scope='module')
