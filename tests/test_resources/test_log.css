@@ -1,7 +1,24 @@
+
 button {
 	margin-left: 2mm;
 	font-size: 6pt;
 	width: 4mm;
 	padding: 0;
 	vertical-align: text-bottom;
+}
+
+div {
+	display: none;
+}
+
+body > div {
+	display: block;
+}
+
+div.visible {
+	display: block;
+}
+
+div.visible > div {
+	display: block;
 }
