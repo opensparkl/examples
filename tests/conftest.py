@@ -17,15 +17,14 @@ Test harness for testing SPARKL sample configs in examples repo.
 import subprocess
 from multiprocessing import Process, Queue
 from queue import Empty
+from time import sleep
 
 import tempfile
-import time
 import uuid
 import os
 import json
 import pytest
 
-from time import sleep
 from sparkl_cli.main import sparkl
 from tests.write_test_log_html import start_test_log, write_log, stop_test_log
 
@@ -59,7 +58,7 @@ FLOAT_ERROR = 'The value of \'{}\' must be a float.'
 ZERO_ERROR = 'The value of \'{}\' must not be zero.'
 
 
-class ChDir(object):
+class ChDir:
     """
     Context manager for stepping into a directory temporarily.
 
@@ -427,7 +426,7 @@ def start_listener_proc(listen_target, alias):
     listen_process.start()
 
     # Give the process time to come up properly.
-    time.sleep(1)
+    sleep(1)
     return event_queue, listen_process
 
 
