@@ -13,36 +13,35 @@ function get_div_parent(element){
 }
 
 
-function click_me(button){
-	if (button.closed){
-		reset(button)
-	}
-
-	else {
-		hide(button)
+function change_button(button){
+	if (button.hasAttribute('class')){
+		button.removeAttribute('class')
+		button.innerHTML = HIDE_ARROW
+	
+	} else {
+		button.setAttribute('class', 'visible')
+		button.innerHTML = RESET_ARROW
 	}
 }
 
 
-function change_display(element, child_tag, new_style){
-	var div = get_div_parent(element)
-	var children = div.getElementsByTagName(child_tag)
-
+function change_children(children){
 	for (i=0; i < children.length; i ++){
-		children[i].style.display = new_style
+
+		if (children[i].hasAttribute('class')){
+			children[i].removeAttribute('class')
+		
+		} else {
+			children[i].setAttribute('class', 'visible')
+		}
 	}
 }
 
 
-function hide(button){
-	change_display(button, 'div', 'none')
-	button.innerHTML = RESET_ARROW
-	button.closed = true
-}
+function click_me(button){
+	change_button(button)
 
-
-function reset(button){
-	change_display(button, 'div', 'block')
-	button.innerHTML = HIDE_ARROW
-	button.closed = false
+	var div = get_div_parent(button)
+	var children = div.children
+	change_children(children)
 }
