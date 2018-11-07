@@ -32,8 +32,8 @@
 3. Follow the instructions on the terminal screen. 
 > If you choose **not** to import all examples, the script offers them one by one for importing.
   ```
-  Enter your SPARKL instance URL: https://saas.sparkl.com
-  Connected to https://saas.sparkl.com using alias this_import_alias
+  Enter your SPARKL instance URL: http://localhost:8000
+  Connected to http://localhost:8000 using alias this_import_alias
   Enter your username: miklos@sparkl.com
   Password: **************
   Logged in as miklos@sparkl.com
